@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "FB Studio Manager",
+    "slug": "fb-studio-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F4F6FA",
+    "scheme": "fbstudiomanager",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4F6FA"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fbstudio.manager",
+      "infoPlist": {
+        "UIStatusBarStyle": "UIStatusBarStyleDarkContent"
+      }
+    },
+    "android": {
+      "package": "com.fbstudio.manager",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#F4F6FA",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-asset",
+      "expo-file-system",
+      "expo-font"
+    ]
+  }
+}
