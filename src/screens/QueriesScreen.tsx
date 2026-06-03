@@ -53,6 +53,57 @@ const PRESETS: PresetQuery[] = [
     icon: '🤖',
     sql: `SELECT p.post_id, p.content, p.reach_count, p.media_type FROM posts p LEFT JOIN interactions i ON p.post_id = i.post_id WHERE i.interaction_id IS NULL ORDER BY p.reach_count DESC`,
   },
+  {
+    key: 'topFollowed',
+    icon: '👑',
+    sql: `SELECT f.followed_id, u.first_name || ' ' || u.last_name AS nombre, COUNT(*) AS seguidores
+          FROM followers f JOIN users u ON f.followed_id = u.user_id
+          GROUP BY f.followed_id ORDER BY seguidores DESC LIMIT 15`,
+  },
+  {
+    key: 'mutualFollows',
+    icon: '🤝',
+    sql: `SELECT f1.follower_id, u1.first_name || ' ' || u1.last_name AS usuario_a,
+                 f1.followed_id, u2.first_name || ' ' || u2.last_name AS usuario_b
+          FROM followers f1
+          JOIN followers f2 ON f1.follower_id = f2.followed_id AND f1.followed_id = f2.follower_id
+          JOIN users u1 ON f1.follower_id = u1.user_id
+          JOIN users u2 ON f1.followed_id = u2.user_id
+          WHERE f1.follower_id < f1.followed_id
+          LIMIT 20`,
+  },
+  {
+    key: 'permissionsBreakdown',
+    icon: '🔐',
+    sql: `SELECT ta.name AS app_name, COUNT(ap.permission_id) AS total_permisos
+          FROM third_party_apps ta JOIN app_permissions ap ON ta.app_id = ap.app_id
+          GROUP BY ta.app_id ORDER BY total_permisos DESC`,
+  },
+  {
+    key: 'topModerated',
+    icon: '⚠️',
+    sql: `SELECT p.post_id, p.author_id, p.media_type, p.reach_count,
+                 COUNT(mr.report_id) AS total_reports
+          FROM posts p JOIN moderation_reports mr ON p.post_id = mr.post_id
+          GROUP BY p.post_id ORDER BY total_reports DESC LIMIT 20`,
+  },
+  {
+    key: 'mediaTypeBreakdown',
+    icon: '🎨',
+    sql: `SELECT COALESCE(media_type, 'null') AS media_type,
+                 COUNT(*) AS total,
+                 ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM posts), 2) AS pct
+          FROM posts GROUP BY media_type ORDER BY total DESC`,
+  },
+  {
+    key: 'yearlyTrend',
+    icon: '📅',
+    sql: `SELECT strftime('%Y', timestamp) AS anio,
+                 COUNT(*) AS total_posts,
+                 ROUND(AVG(reach_count), 0) AS avg_reach
+          FROM posts WHERE timestamp IS NOT NULL
+          GROUP BY anio ORDER BY anio`,
+  },
 ]
 
 export default function QueriesScreen() {

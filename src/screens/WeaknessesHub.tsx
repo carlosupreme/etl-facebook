@@ -75,6 +75,18 @@ export default function WeaknessesHub() {
     return r?.c ?? 0
   })
 
+  const { data: noMediaType } = useDbQuery('noMediaType', async (db) => {
+    const r = await db.queryOne<{ c: number }>(
+      "SELECT COUNT(*) AS c FROM posts WHERE media_type = 'none' OR media_type IS NULL"
+    )
+    return r?.c ?? 0
+  })
+
+  const { data: highMod } = useDbQuery('highMod', async (db) => {
+    const r = await db.queryOne<{ c: number }>('SELECT COUNT(*) AS c FROM moderation_reports')
+    return r?.c ?? 0
+  })
+
   const items: WeaknessItem[] = [
     {
       id: 'lowReach', labelKey: 'lowReach', severity: 'critical', count: lowReach ?? 0,
@@ -117,6 +129,20 @@ export default function WeaknessesHub() {
       description: t('weaknesses.items.adFatigue.description'),
       impact: t('weaknesses.items.adFatigue.impact'),
       recommendation: t('weaknesses.items.adFatigue.recommendation'),
+    },
+    {
+      id: 'noMediaType', labelKey: 'noMediaType', severity: 'critical', count: noMediaType ?? 0,
+      icon: '📭',
+      description: t('weaknesses.items.noMediaType.description'),
+      impact: t('weaknesses.items.noMediaType.impact'),
+      recommendation: t('weaknesses.items.noMediaType.recommendation'),
+    },
+    {
+      id: 'highModeration', labelKey: 'highModeration', severity: 'warning', count: highMod ?? 0,
+      icon: '🚨',
+      description: t('weaknesses.items.highModeration.description'),
+      impact: t('weaknesses.items.highModeration.impact'),
+      recommendation: t('weaknesses.items.highModeration.recommendation'),
     },
   ]
 

@@ -7,6 +7,8 @@ import WeaknessesHub from '../screens/WeaknessesHub'
 import QueriesScreen from '../screens/QueriesScreen'
 import KpiCatalogScreen from '../screens/KpiCatalogScreen'
 import SettingsScreen from '../screens/SettingsScreen'
+import FollowersScreen from '../screens/FollowersScreen'
+import PermissionsScreen from '../screens/PermissionsScreen'
 
 const Tab = createBottomTabNavigator()
 
@@ -70,6 +72,26 @@ export default function TabNavigator() {
           tabBarLabel: t('nav.kpi_catalog'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="analytics-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="FollowersTab"
+        component={FollowersScreen}
+        options={{
+          tabBarLabel: t('nav.followers'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="PermissionsTab"
+        component={PermissionsScreen}
+        options={{
+          tabBarLabel: t('nav.permissions'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shield-checkmark-outline" size={size} color={color} />
           ),
         }}
       />

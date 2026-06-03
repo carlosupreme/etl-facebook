@@ -160,6 +160,26 @@ export const DEFAULT_KPIS: KpiDefinition[] = [
     query: "SELECT COUNT(*) AS c FROM pages WHERE page_id NOT IN (SELECT DISTINCT page_id FROM posts WHERE page_id IS NOT NULL)",
     categoryId: 'content', targetExpr: 'value === 0', createdAt: Date.now(), updatedAt: Date.now(), isCustom: false,
   },
+  {
+    id: 'totalFollowers', name: 'Red de Seguidores', nameKey: 'kpi_catalog.kpis.totalFollowers.name',
+    description: 'Total de relaciones seguidor→seguido.',
+    descKey: 'kpi_catalog.kpis.totalFollowers.description',
+    goalKey: 'kpi_catalog.kpis.totalFollowers.businessGoal', icon: '👥',
+    formula: 'COUNT(*) FROM followers', goodValue: 'Crecimiento positivo mes a mes',
+    query: 'SELECT COUNT(*) AS avg FROM followers',
+    categoryId: 'health_retention', targetExpr: 'value > 0',
+    createdAt: Date.now(), updatedAt: Date.now(), isCustom: false,
+  },
+  {
+    id: 'orphanPosts', name: 'Contenido Sin Tipo', nameKey: 'kpi_catalog.kpis.orphanPosts.name',
+    description: 'Posts con media_type=none.',
+    descKey: 'kpi_catalog.kpis.orphanPosts.description',
+    goalKey: 'kpi_catalog.kpis.orphanPosts.businessGoal', icon: '📭',
+    formula: 'COUNT(*) WHERE media_type IS NULL OR none', goodValue: '< 5% del total',
+    query: "SELECT COUNT(*) AS avg FROM posts WHERE media_type = 'none' OR media_type IS NULL",
+    categoryId: 'content_community', targetExpr: 'value < 28500',
+    createdAt: Date.now(), updatedAt: Date.now(), isCustom: false,
+  },
 ]
 
 class KpiStore {

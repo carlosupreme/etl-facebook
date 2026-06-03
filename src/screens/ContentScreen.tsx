@@ -18,11 +18,14 @@ export default function ContentScreen() {
        GROUP BY media_type ORDER BY AVG(reach_count) DESC LIMIT 1`
     )
     const total = await db.queryOne<{ c: number }>('SELECT COUNT(*) AS c FROM posts')
+    const noneCount = await db.queryOne<{ c: number }>(
+      "SELECT COUNT(*) AS c FROM posts WHERE media_type = 'none' OR media_type IS NULL"
+    )
     return [
       { label: t('content.avgReach'), value: avgReach?.avg ?? 0 },
       { label: t('content.bestMedia'), value: bestMedia?.media_type ?? '—' },
       { label: t('overview.posts'), value: total?.c ?? 0 },
-      { label: 'Reels', value: '—' },
+      { label: t('content.noneTypeAlert'), value: noneCount?.c ?? 0 },
     ]
   })
 
@@ -33,6 +36,17 @@ export default function ContentScreen() {
        GROUP BY p.media_type ORDER BY avg_reach DESC`
     )
     return (rows ?? []).map(r => ({ type: r.media_type ?? 'unknown', avg: r.avg_reach ?? 0 }))
+  })
+
+  const { data: mediaTypeCount } = useDbQuery('mediaTypeCount', async (db) => {
+    const rows = await db.queryAll<{ media_type: string; total: number; pct: number }>(
+      `SELECT media_type, COUNT(*) AS total,
+              ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM posts), 1) AS pct
+       FROM posts
+       WHERE media_type IS NOT NULL
+       GROUP BY media_type ORDER BY total DESC`
+    )
+    return (rows ?? []).map(r => ({ label: r.media_type ?? 'unknown', value: r.total ?? 0 }))
   })
 
   const { data: reachDist } = useDbQuery('reachDist', async (db) => {
@@ -72,6 +86,13 @@ export default function ContentScreen() {
       <View style={styles.kpiRow}>
         {kpis?.slice(2, 4).map((k, i) => <KpiTile key={i} label={k.label} value={k.value} />)}
       </View>
+
+      <ChartContainer title={t('content.mediaTypeCount')} height={200}>
+        <BarChart
+          data={mediaTypeCount ?? []}
+          height={200}
+        />
+      </ChartContainer>
 
       <ChartContainer title={t('content.reachByType')} height={200}>
         <BarChart

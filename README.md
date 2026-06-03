@@ -11,6 +11,8 @@
 2. [Relación con el Proceso ETL](#2-relación-con-el-proceso-etl)
 3. [Arquitectura de la Aplicación](#3-arquitectura-de-la-aplicación)
 4. [Módulos y Pantallas](#4-módulos-y-pantallas)
+   - 4.1 Dashboard Overview · 4.2 Content · 4.3 Engagement · 4.4 Advertising · 4.5 Activity
+   - 4.6 Weaknesses Hub · 4.7 KPI Catalog · 4.8 KPI Builder · 4.9 Queries · 4.10 Settings
 5. [Componentes Reutilizables](#5-componentes-reutilizables)
 6. [Servicios y Lógica de Negocio](#6-servicios-y-lógica-de-negocio)
 7. [Navegación](#7-navegación)
@@ -39,15 +41,26 @@ La app **no modifica ni transforma** los datos. Toda la limpieza y normalizació
 
 La app **consulta directamente las tablas resultantes** del proceso:
 
-- `posts` — 70 000 registros tras la carga ETL (50 000 originales + 20 000 del CSV)
-- `users` — 15 500 usuarios
-- `interactions` — 50 000 interacciones (likes, comentarios, shares)
-- `ad_campaigns` / `ad_metrics` — 50 campañas y sus métricas
-- `activity_log` — 20 000 registros de actividad
-- `moderation_reports` — 500 reportes de moderación
-- `pages` — 100 páginas públicas
+| Tabla               | Registros    | Notas                                                             |
+| ------------------- | ------------ | ----------------------------------------------------------------- |
+| `posts`             | ~570 000     | Incluye 39.6% con `media_type='none'` sin normalizar              |
+| `users`             | 15 500       |                                                                   |
+| `interactions`      | ~249 600     | 8 tipos: like, love, comment, share, haha, wow, sad, angry        |
+| `followers`         | ~200 000     | Relaciones seguidor→seguido; columnas `follower_id`, `followed_id`|
+| `app_permissions`   | ~200 499     | Columnas `permission_id`, `user_id`, `app_id`, `permission_type`  |
+| `third_party_apps`  | 20           | Columnas `app_id`, `name`                                         |
+| `ad_campaigns`      | 50           |                                                                   |
+| `ad_metrics`        | —            |                                                                   |
+| `activity_log`      | 20 000       |                                                                   |
+| `moderation_reports`| ~500         |                                                                   |
+| `pages`             | 100          |                                                                   |
 
-Todos los campos normalizados por el ETL (`timestamp` en ISO 8601, `media_type` y `privacy` estandarizados, `reach_count` sin negativos) son consumidos directamente por las queries SQL de la app.
+**Notas del ETL relevantes para la app:**
+
+- `privacy = 'only_me'` existe en la BD (≈4.4% de posts) — el ETL **no** lo normalizó a `private`. La app lo muestra tal cual.
+- `media_type` real incluye: `none` (39.6%), `image` (29.4%), `video` (13.6%), `link` (7%), `story` (4.4%), `reel` (2.9%), `text` (2.9%). El valor `'none'` no fue depurado por el ETL.
+- Rango de fechas real: **2020–2026** (no 2021–2024 como asumía documentación anterior).
+- Todos los campos normalizados por el ETL (`timestamp` en ISO 8601, `reach_count` sin negativos) son consumidos directamente por las queries SQL de la app.
 
 ---
 
@@ -71,6 +84,8 @@ App.tsx
 │   │           ├── KpiCatalogScreen
 │   │           ├── KpiBuilderScreen
 │   │           ├── QueriesScreen
+│   │           ├── FollowersScreen
+│   │           ├── PermissionsScreen
 │   │           └── SettingsScreen
 │   └── GlobalLoadingBar
 └── StatusBar
@@ -84,7 +99,7 @@ App.tsx
 | ------------------ | ----------------------------------------------------------------- |
 | `queryAll<T>(sql)` | Ejecuta una query y devuelve todas las filas como objetos tipados |
 | `queryOne<T>(sql)` | Devuelve solo la primera fila                                     |
-| `getTableInfo()`   | Cuenta registros en las 8 tablas principales                      |
+| `getTableInfo()`   | Cuenta registros en las 11 tablas principales                     |
 | `uploadDb(file)`   | Carga el archivo `.db` en memoria (solo web)                      |
 
 En **web** usa `sql.js` (SQLite compilado a WebAssembly). En **móvil** usa `expo-sqlite`. Ambos ejecutan el mismo SQL sin diferencias para el resto de la app.
@@ -121,14 +136,15 @@ SELECT COUNT(*) FROM interactions;
 
 **Métricas:**
 
-- Distribución de publicaciones por `media_type` (image, video, reel, text)
-- Distribución por `privacy` (public, friends, private)
+- Conteo de posts con `media_type='none'` o nulo (KPI 4 — alerta de contenido sin tipo)
+- Distribución de publicaciones por `media_type` — todos los 7 tipos reales: `none`, `image`, `video`, `link`, `story`, `reel`, `text`
 - Alcance promedio por tipo de medio
-- Posts con bajo alcance
+- Distribución de alcance (histograma)
+- Dispersión contenido vs engagement
 
-**Visualizaciones:** Gráfica de barras (`BarChart`), gráfica de torta (`PieChart`).
+**Visualizaciones:** `BarChart` para distribución de tipos y alcance, `ScatterChart` para contenido vs engagement.
 
-**Relación con ETL:** Consume directamente los campos `media_type` y `privacy` normalizados por el ETL (T9 y T10 del script Python).
+**Relación con ETL:** Expone el campo `media_type` tal como quedó del ETL, incluyendo el valor `'none'` no depurado.
 
 ---
 
@@ -138,8 +154,8 @@ SELECT COUNT(*) FROM interactions;
 
 **Métricas:**
 
-- Conteo de likes, comentarios y shares
-- Tasa de engagement por post (`interactions / reach_count × 100`)
+- Conteo individual de las **8 reacciones**: like (96 872), love (40 237), comment (36 374), share (26 600), haha (20 032), wow (13 962), sad (9 988), angry (5 935)
+- Promedio de interacciones por post
 - Posts con cero interacciones (posibles bots o contenido ignorado)
 - Evolución temporal del engagement
 
@@ -147,11 +163,12 @@ SELECT COUNT(*) FROM interactions;
 
 ```sql
 SELECT COUNT(*) AS c FROM interactions WHERE type = 'like';
-SELECT COUNT(*) AS c FROM interactions WHERE type = 'comment';
-SELECT COUNT(*) AS c FROM interactions WHERE type = 'share';
+SELECT COUNT(*) AS c FROM interactions WHERE type = 'love';
+SELECT COUNT(*) AS c FROM interactions WHERE type = 'haha';
+-- ... (8 queries en total, una por tipo)
 ```
 
-**Visualizaciones:** `PieChart` para distribución de tipos, `LineChart` para evolución temporal.
+**Visualizaciones:** `PieChart` con las 8 reacciones (distribución de tipos + breakdown detallado), `LineChart` para evolución temporal.
 
 ---
 
@@ -198,16 +215,18 @@ GROUP BY u.user_id ORDER BY events DESC LIMIT 10;
 
 **Propósito:** Panel de alertas y puntos débiles detectados automáticamente.
 
-Detecta 6 tipos de problemas con severidad clasificada:
+Detecta 8 tipos de problemas con severidad clasificada:
 
-| ID          | Problema                                 | Severidad      | Fuente SQL                    |
-| ----------- | ---------------------------------------- | -------------- | ----------------------------- |
-| `lowReach`  | Posts con alcance < 30% del promedio     | 🔴 Crítico     | tabla `posts`                 |
-| `zeroInt`   | Posts sin ninguna interacción            | 🔴 Crítico     | JOIN `posts` + `interactions` |
-| `adWaste`   | Campañas con CPM sobre el promedio       | 🟡 Advertencia | tabla `ad_metrics`            |
-| `dormant`   | Páginas sin publicaciones recientes      | 🟡 Advertencia | tabla `pages`                 |
-| `churn`     | Usuarios inactivos (riesgo de abandono)  | 🟡 Advertencia | `activity_log`                |
-| `adFatigue` | Alta frecuencia de exposición al anuncio | 🔵 Monitorear  | `ad_metrics`                  |
+| ID               | Problema                                   | Severidad      | Fuente SQL                    |
+| ---------------- | ------------------------------------------ | -------------- | ----------------------------- |
+| `lowReach`       | Posts con alcance < 30% del promedio       | 🔴 Crítico     | tabla `posts`                 |
+| `zeroInt`        | Posts sin ninguna interacción              | 🔴 Crítico     | JOIN `posts` + `interactions` |
+| `noMediaType`    | Posts con `media_type='none'` o nulo       | 🔴 Crítico     | tabla `posts`                 |
+| `adWaste`        | Campañas con CPM sobre el promedio         | 🟡 Advertencia | tabla `ad_metrics`            |
+| `dormant`        | Páginas sin publicaciones recientes        | 🟡 Advertencia | tabla `pages`                 |
+| `churn`          | Usuarios inactivos (riesgo de abandono)    | 🟡 Advertencia | `activity_log`                |
+| `highModeration` | Alto volumen de reportes de moderación     | 🟡 Advertencia | `moderation_reports`          |
+| `adFatigue`      | Alta frecuencia de exposición al anuncio   | 🔵 Monitorear  | `ad_metrics`                  |
 
 Cada tarjeta es expandible y muestra descripción, impacto de negocio y recomendación accionable.
 
@@ -232,6 +251,8 @@ Cada KPI muestra: nombre, descripción en español, fórmula, valor objetivo y e
 - Costo por Visita (CPC)
 - Costo de Visibilidad (CPM)
 - Usuarios que se van (Churn Risk)
+- Red de Seguidores (`totalFollowers`) — COUNT de tabla `followers`
+- Contenido Sin Tipo (`orphanPosts`) — posts con `media_type='none'` o nulo
 
 ---
 
@@ -256,16 +277,22 @@ Esto permite al analista construir indicadores a medida sin modificar el código
 
 **Consultas predefinidas disponibles:**
 
-| Clave              | Descripción                              | Tablas involucradas          |
-| ------------------ | ---------------------------------------- | ---------------------------- |
-| `topEngaging`      | Top 10 posts por interacciones + tasa ER | `posts`, `interactions`      |
-| `mostActive`       | Top 10 usuarios más activos              | `users`, `activity_log`      |
-| `privacyBreakdown` | Distribución por privacidad              | `posts`                      |
-| `adRoi`            | ROI de campañas (CPM, CTR)               | `ad_campaigns`, `ad_metrics` |
-| `recentPosts`      | Últimos 20 posts publicados              | `posts`                      |
-| `lowReach`         | Posts con alcance < 30% del promedio     | `posts`                      |
-| `highCpm`          | Campañas con mayor CPM                   | `ad_campaigns`, `ad_metrics` |
-| `zeroInteractions` | Posts sin interacciones                  | `posts`, `interactions`      |
+| Clave                  | Descripción                                     | Tablas involucradas                     |
+| ---------------------- | ----------------------------------------------- | --------------------------------------- |
+| `topEngaging`          | Top 10 posts por interacciones + tasa ER        | `posts`, `interactions`                 |
+| `mostActive`           | Top 10 usuarios más activos                     | `users`, `activity_log`                 |
+| `privacyBreakdown`     | Distribución por privacidad                     | `posts`                                 |
+| `adRoi`                | ROI de campañas (CPM, CTR)                      | `ad_campaigns`, `ad_metrics`            |
+| `recentPosts`          | Últimos 20 posts publicados                     | `posts`                                 |
+| `lowReach`             | Posts con alcance < 30% del promedio            | `posts`                                 |
+| `highCpm`              | Campañas con mayor CPM                          | `ad_campaigns`, `ad_metrics`            |
+| `zeroInteractions`     | Posts sin interacciones                         | `posts`, `interactions`                 |
+| `topFollowed`          | Top 15 usuarios con más seguidores              | `followers`, `users`                    |
+| `mutualFollows`        | Pares de usuarios que se siguen mutuamente      | `followers`, `users`                    |
+| `permissionsBreakdown` | Permisos totales por app conectada              | `third_party_apps`, `app_permissions`   |
+| `topModerated`         | Posts con más reportes de moderación            | `posts`, `moderation_reports`           |
+| `mediaTypeBreakdown`   | Distribución de posts por tipo de medio (%)     | `posts`                                 |
+| `yearlyTrend`          | Posts por año y alcance promedio anual          | `posts`                                 |
 
 El usuario también puede escribir SQL libre y ver los resultados en una tabla paginada.
 
@@ -361,6 +388,8 @@ DrawerNavigator (menú lateral)
 ├── 📋 Catálogo KPI         → KpiCatalogScreen
 ├── 🔧 Constructor KPI      → KpiBuilderScreen
 ├── 🔍 Consultas SQL        → QueriesScreen
+├── 👥 Seguidores           → FollowersScreen
+├── 🔐 Permisos             → PermissionsScreen
 └── ⚙️  Configuración       → SettingsScreen
 ```
 

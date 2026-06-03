@@ -9,6 +9,8 @@ import EngagementScreen from '../screens/EngagementScreen'
 import ContentScreen from '../screens/ContentScreen'
 import AdvertisingScreen from '../screens/AdvertisingScreen'
 import ActivityScreen from '../screens/ActivityScreen'
+import FollowersScreen from '../screens/FollowersScreen'
+import PermissionsScreen from '../screens/PermissionsScreen'
 
 const Drawer = createDrawerNavigator()
 
@@ -97,6 +99,22 @@ export default function DrawerNavigator() {
         options={{
           title: t('nav.activity'),
           drawerIcon: ({ color }) => <Ionicons name="people-outline" size={20} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="Followers"
+        component={FollowersScreen}
+        options={{
+          title: t('nav.followers'),
+          drawerIcon: ({ color }) => <Ionicons name="people-outline" size={20} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="Permissions"
+        component={PermissionsScreen}
+        options={{
+          title: t('nav.permissions'),
+          drawerIcon: ({ color }) => <Ionicons name="shield-checkmark-outline" size={20} color={color} />,
         }}
       />
     </Drawer.Navigator>

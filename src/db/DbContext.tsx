@@ -43,7 +43,7 @@ function createWebProvider(sqlDb: any): DbProvider {
     return rows[0] ?? null
   }
   const getTableInfo = async () => {
-    const tables = ['users', 'posts', 'interactions', 'pages', 'ad_campaigns', 'ad_metrics', 'moderation_reports', 'activity_log']
+    const tables = ['users', 'posts', 'interactions', 'pages', 'ad_campaigns', 'ad_metrics', 'moderation_reports', 'activity_log', 'followers', 'third_party_apps', 'app_permissions']
     const result: { name: string; rows: number }[] = []
     for (const t of tables) {
       const r = await queryOne<{ count: number }>(`SELECT COUNT(*) AS count FROM ${t}`)
