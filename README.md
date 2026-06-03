@@ -1,4 +1,4 @@
-# FB Studio Mobile — Documentación en Español
+# Documentación
 
 > **Aplicación de visualización analítica** para la red social facebook.
 > La app **no realiza extracción, transformación ni carga de datos** (ETL). Solo consulta y presenta los resultados de una base de datos ya procesada.
