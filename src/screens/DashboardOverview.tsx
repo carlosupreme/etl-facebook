@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
-import { useTranslation } from 'react-i18next'
 import { colors, spacing, typography } from '../theme/tokens'
 import { GlassCard } from '../components/GlassCard'
 import { KpiTile } from '../components/KpiTile'
@@ -11,8 +10,8 @@ import { DateRangeFilter, type DateRange } from '../components/DateRangeFilter'
 import { useDbQuery } from '../hooks/useDbQuery'
 
 function inferGranularity(label: string): 'day' | 'week' | 'month' {
-  if (label === 'Last 7 days' || label === 'Last 30 days') return 'day'
-  if (label === '6 months') return 'week'
+  if (label === 'Últimos 7 días' || label === 'Últimos 30 días') return 'day'
+  if (label === '6 meses') return 'week'
   return 'month'
 }
 
@@ -31,8 +30,7 @@ function fmtDay(raw: string): string {
 }
 
 export default function DashboardOverview() {
-  const { t } = useTranslation()
-  const [dateRange, setDateRange] = useState<DateRange>({ label: 'All time', whereClause: '' })
+  const [dateRange, setDateRange] = useState<DateRange>({ label: 'Todo el tiempo', whereClause: '' })
   const granularity = inferGranularity(dateRange.label)
 
   const { data: kpis } = useDbQuery('kpis', async (db) => {
@@ -46,10 +44,10 @@ export default function DashboardOverview() {
         WHERE p.reach_count > 0 GROUP BY p.post_id
       )`)
     return [
-      { label: t('overview.users'), value: users?.c ?? 0 },
-      { label: t('overview.posts'), value: posts?.c ?? 0 },
-      { label: t('overview.interactions'), value: interactions?.c ?? 0 },
-      { label: t('overview.engagementRate'), value: `${er?.avg_er ?? 0}%`, trend: { value: 2.1, positive: true } },
+      { label: 'Usuarios', value: users?.c ?? 0 },
+      { label: 'Publicaciones', value: posts?.c ?? 0 },
+      { label: 'Interacciones', value: interactions?.c ?? 0 },
+      { label: 'Tasa Interacción', value: `${er?.avg_er ?? 0}%`, trend: { value: 2.1, positive: true } },
     ]
   })
 
@@ -132,8 +130,8 @@ export default function DashboardOverview() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{t('overview.title')}</Text>
-      <Text style={styles.subtitle}>{t('overview.subtitle')}</Text>
+      <Text style={styles.title}>Panel Principal</Text>
+      <Text style={styles.subtitle}>Métricas clave de la red social</Text>
 
       <DateRangeFilter onChange={setDateRange} />
 
@@ -144,7 +142,7 @@ export default function DashboardOverview() {
         {kpis?.slice(2, 4).map((k, i) => <KpiTile key={i} label={k.label} value={k.value} trend={(k as any).trend} />)}
       </View>
 
-      <ChartContainer title={`${t('overview.postsOverTime')} · ${dateRangeDisplay}`} height={200}>
+      <ChartContainer title={`Publicaciones en el Tiempo · ${dateRangeDisplay}`} height={200}>
         <LineChart
           labels={postsLabels}
           series={[{ label: 'Posts', values: postsTimeline?.points.map(p => p.posts) ?? [] }]}
@@ -158,7 +156,7 @@ export default function DashboardOverview() {
         />
       </ChartContainer>
 
-      <ChartContainer title={t('overview.mediaDistribution')} height={200}>
+      <ChartContainer title="Distribución por Tipo" height={200}>
         <PieChart
           data={mediaDist?.map(d => ({ label: d.type, value: d.count })) ?? []}
           height={200}
@@ -166,13 +164,13 @@ export default function DashboardOverview() {
       </ChartContainer>
 
       <View style={styles.twoCol}>
-        <ChartContainer title={t('overview.privacyBreakdown')} height={180}>
+        <ChartContainer title="Privacidad" height={180}>
           <BarChart
             data={privacyStats?.map(d => ({ label: d.privacy, value: d.count })) ?? []}
             height={180}
           />
         </ChartContainer>
-        <ChartContainer title={t('overview.topCountries')} height={180}>
+        <ChartContainer title="Países principales" height={180}>
           <BarChart
             data={topCountries?.map(d => ({ label: d.country, value: d.users })) ?? []}
             height={180}
@@ -180,9 +178,9 @@ export default function DashboardOverview() {
         </ChartContainer>
       </View>
 
-      <SectionHeader title={t('overview.weaknessPreview')} action={t('common.seeAll')} />
+      <SectionHeader title="Debilidades detectadas" action="Ver todo" />
       <GlassCard glow="amber" style={styles.weaknessPreview}>
-        <Text style={typography.body}>3 weaknesses detected — tap to view</Text>
+        <Text style={typography.body}>3 debilidades detectadas — toca para ver</Text>
       </GlassCard>
     </ScrollView>
   )

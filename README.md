@@ -18,6 +18,7 @@
 8. [Internacionalización (i18n)](#8-internacionalización-i18n)
 9. [Stack Tecnológico](#9-stack-tecnológico)
 10. [Cómo Ejecutar la App](#10-cómo-ejecutar-la-app)
+11. [Ejemplo de Reporte](#11-ejemplo-de-reporte)
 
 ---
 
@@ -457,3 +458,9 @@ bun run ios
 4. Navega por las pantallas para explorar KPIs, gráficas y análisis.
 
 > **Nota:** El archivo `.db` nunca se modifica. La app solo ejecuta queries `SELECT` de lectura.
+
+---
+
+## 11. Ejemplo de Reporte
+
+![Ejemplo de reporte generado por FB Studio Mobile](docs/reporte.png)

@@ -1,14 +1,11 @@
+import { Ionicons } from '@expo/vector-icons'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { useTranslation } from 'react-i18next'
-import { Ionicons } from '@expo/vector-icons'
-import { colors } from '../theme/tokens'
 import DashboardOverview from '../screens/DashboardOverview'
-import WeaknessesHub from '../screens/WeaknessesHub'
-import QueriesScreen from '../screens/QueriesScreen'
 import KpiCatalogScreen from '../screens/KpiCatalogScreen'
-import SettingsScreen from '../screens/SettingsScreen'
-import FollowersScreen from '../screens/FollowersScreen'
-import PermissionsScreen from '../screens/PermissionsScreen'
+import QueriesScreen from '../screens/QueriesScreen'
+import WeaknessesHub from '../screens/WeaknessesHub'
+import { colors } from '../theme/tokens'
 
 const Tab = createBottomTabNavigator()
 
@@ -75,36 +72,7 @@ export default function TabNavigator() {
           ),
         }}
       />
-      <Tab.Screen
-        name="FollowersTab"
-        component={FollowersScreen}
-        options={{
-          tabBarLabel: t('nav.followers'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="PermissionsTab"
-        component={PermissionsScreen}
-        options={{
-          tabBarLabel: t('nav.permissions'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="shield-checkmark-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="SettingsTab"
-        component={SettingsScreen}
-        options={{
-          tabBarLabel: t('nav.settings'),
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
-          ),
-        }}
-      />
+
     </Tab.Navigator>
   )
 }

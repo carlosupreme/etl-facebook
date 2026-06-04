@@ -13,14 +13,14 @@ interface Props {
 }
 
 const RANGES: { label: string; whereClause: string }[] = [
-  { label: 'All time', whereClause: '' },
-  { label: 'Last 7 days', whereClause: "WHERE timestamp >= datetime('now', '-7 days', '+6 years')" },
-  { label: 'Last 30 days', whereClause: "WHERE timestamp >= datetime('now', '-30 days', '+6 years')" },
-  { label: '6 months', whereClause: "WHERE timestamp >= datetime('now', '-6 months', '+6 years')" },
-  { label: '1 year', whereClause: "WHERE timestamp >= datetime('now', '-1 year', '+6 years')" },
+  { label: 'Todo el tiempo', whereClause: '' },
+  { label: 'Últimos 7 días', whereClause: "WHERE timestamp >= datetime('now', '-7 days', '+6 years')" },
+  { label: 'Últimos 30 días', whereClause: "WHERE timestamp >= datetime('now', '-30 days', '+6 years')" },
+  { label: '6 meses', whereClause: "WHERE timestamp >= datetime('now', '-6 months', '+6 years')" },
+  { label: '1 año', whereClause: "WHERE timestamp >= datetime('now', '-1 year', '+6 years')" },
 ]
 
-export function DateRangeFilter({ onChange, initial = 'All time' }: Props) {
+export function DateRangeFilter({ onChange, initial = 'Todo el tiempo' }: Props) {
   const [active, setActive] = useState(initial)
 
   return (
