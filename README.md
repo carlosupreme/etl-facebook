@@ -15,10 +15,9 @@
 5. [Componentes Reutilizables](#5-componentes-reutilizables)
 6. [Servicios y Lógica de Negocio](#6-servicios-y-lógica-de-negocio)
 7. [Navegación](#7-navegación)
-8. [Internacionalización (i18n)](#8-internacionalización-i18n)
-9. [Stack Tecnológico](#9-stack-tecnológico)
-10. [Cómo Ejecutar la App](#10-cómo-ejecutar-la-app)
-11. [Capturas de Pantalla](#11-capturas-de-pantalla)
+8. [Stack Tecnológico](#8-stack-tecnológico)
+9. [Cómo Ejecutar la App](#9-cómo-ejecutar-la-app)
+10. [Capturas de Pantalla](#10-capturas-de-pantalla)
 
 ---
 
@@ -409,20 +408,7 @@ TabNavigator (barra inferior)
 
 ---
 
-## 8. Internacionalización (i18n)
-
-La app soporta dos idiomas configurados en `src/i18n/`:
-
-| Archivo          | Idioma                |
-| ---------------- | --------------------- |
-| `src/i18n/es.ts` | Español (por defecto) |
-| `src/i18n/en.ts` | Inglés                |
-
-Usa la librería `i18next` con `react-i18next`. Todos los textos visibles al usuario usan el hook `useTranslation()` con claves tipadas.
-
----
-
-## 9. Stack Tecnológico
+## 8. Stack Tecnológico
 
 | Tecnología           | Versión  | Rol                                 |
 | -------------------- | -------- | ----------------------------------- |
@@ -439,7 +425,7 @@ Usa la librería `i18next` con `react-i18next`. Todos los textos visibles al usu
 
 ---
 
-## 10. Cómo Ejecutar la App
+## 9. Cómo Ejecutar la App
 
 ### Requisitos
 
@@ -480,7 +466,7 @@ bun run ios
 
 ---
 
-## 11. Capturas de Pantalla
+## 10. Capturas de Pantalla
 
 ### Dashboard Overview
 
