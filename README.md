@@ -72,21 +72,13 @@ App.tsx
 ├── DbProvider  ←  Contexto global de base de datos
 │   ├── DbUploader  (web: carga el archivo .db)
 │   ├── NavigationContainer
-│   │   └── DrawerNavigator
-│   │       ├── TabNavigator  (tabs inferiores)
-│   │       │   ├── DashboardOverview
-│   │       │   ├── ContentScreen
-│   │       │   ├── EngagementScreen
-│   │       │   ├── AdvertisingScreen
-│   │       │   └── ActivityScreen
-│   │       └── Pantallas adicionales (drawer)
-│   │           ├── WeaknessesHub
-│   │           ├── KpiCatalogScreen
-│   │           ├── KpiBuilderScreen
-│   │           ├── QueriesScreen
-│   │           ├── FollowersScreen
-│   │           ├── PermissionsScreen
-│   │           └── SettingsScreen
+│   │   └── TabNavigator  (barra inferior)
+│   │       ├── DashboardOverview
+│   │       ├── WeaknessesHub
+│   │       ├── KpiCatalogScreen
+│   │       ├── KpiBuilderScreen
+│   │       ├── QueriesScreen
+│   │       └── SettingsScreen
 │   └── GlobalLoadingBar
 └── StatusBar
 ```
@@ -407,22 +399,12 @@ Sistema de diseño centralizado: colores, tipografía, espaciado y radios de bor
 ## 7. Navegación
 
 ```
-DrawerNavigator (menú lateral)
-│
-├── TabNavigator (barra inferior)
-│   ├── 🏠 Dashboard       → DashboardOverview
-│   ├── 📝 Contenido       → ContentScreen
-│   ├── 💬 Engagement      → EngagementScreen
-│   ├── 📢 Publicidad      → AdvertisingScreen
-│   └── 📊 Actividad       → ActivityScreen
-│
-├── ⚠️  Debilidades         → WeaknessesHub
-├── 📋 Catálogo KPI         → KpiCatalogScreen
-├── 🔧 Constructor KPI      → KpiBuilderScreen
-├── 🔍 Consultas SQL        → QueriesScreen
-├── 👥 Seguidores           → FollowersScreen
-├── 🔐 Permisos             → PermissionsScreen
-└── ⚙️  Configuración       → SettingsScreen
+TabNavigator (barra inferior)
+├── 🏠 Dashboard       → DashboardOverview
+├── ⚠️  Debilidades    → WeaknessesHub
+├── 📋 Catálogo KPI    → KpiCatalogScreen
+├── 🔍 Consultas SQL   → QueriesScreen
+└── ⚙️  Configuración  → SettingsScreen
 ```
 
 ---
