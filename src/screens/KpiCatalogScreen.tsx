@@ -9,6 +9,7 @@ import { useDbQuery, refreshAllQueries, getActiveQueries } from '../hooks/useDbQ
 import KpiBuilderScreen from './KpiBuilderScreen'
 import { kpiStore, type KpiDefinition, type KpiCategory } from '../services/KpiStore'
 import { evalTargetExpression } from '../services/evalExpression'
+import { exportKpiPdf, type KpiExportItem } from '../services/pdfExport'
 
 let reloadKey = 0
 
@@ -208,6 +209,19 @@ export default function KpiCatalogScreen() {
     }),
   })
 
+  const handleExportPdf = async () => {
+    const items: KpiExportItem[] = kpiDefs.map(kpi => {
+      const vr = getKpiValue(kpi.id)
+      return {
+        id: kpi.id, icon: kpi.icon, name: kpi.name,
+        description: kpi.description, formula: kpi.formula,
+        target: kpi.goodValue, categoryId: kpi.categoryId,
+        currentValue: vr?.value ?? null, status: vr?.status ?? null,
+      }
+    })
+    await exportKpiPdf(items)
+  }
+
   const handleDownloadJson = async () => {
     const json = JSON.stringify(buildExportJson(), null, 2)
     const filename = `fb-studio-kpi-catalog-${i18n.language}.json`
@@ -262,6 +276,9 @@ export default function KpiCatalogScreen() {
           <TouchableOpacity onPress={() => setViewMode('builder')} style={styles.builderBtn}>
             <Ionicons name="build-outline" size={18} color={colors.accent.cyan} />
             <Text style={styles.builderBtnText}>{t('kpi_builder.toggleBuilder')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleExportPdf} style={styles.exportBtn}>
+            <Ionicons name="document-text-outline" size={18} color={colors.accent.magenta} />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleDownloadJson} style={styles.exportBtn}>
             <Ionicons name="download-outline" size={18} color={colors.accent.amber} />
