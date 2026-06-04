@@ -1,383 +1,516 @@
-import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native'
-import { useState, useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
-import { colors, spacing, radius, typography } from '../theme/tokens'
-import { GlassCard } from '../components/GlassCard'
+import {
+  View, Text, StyleSheet, TextInput, TouchableOpacity,
+  FlatList, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Keyboard,
+} from 'react-native'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { colors, spacing, radius, typography, shadows } from '../theme/tokens'
 import { DataTable } from '../components/DataTable'
 import { useDb } from '../db/DbContext'
+import { openaiKeyStore } from '../services/openaiKeyStore'
 
-interface PresetQuery {
-  key: string
-  icon: string
-  sql: string
-}
+const DB_SCHEMA = `
+TABLAS:
+- users: user_id, username, first_name, last_name, email, birth_date, country, city, registration_date
+- posts: post_id, author_id, content, media_type (image|video|link|story|reel|text), privacy (public|friends|only_me|private), reach_count, timestamp
+- interactions: interaction_id, user_id, post_id, type (like|love|share|comment|haha|wow|sad|angry), timestamp
+- pages: page_id, owner_id, name, category, followers_count, created_at
+- ad_campaigns: campaign_id, page_id, objective (reach|brand_awareness|conversions), budget, start_date, end_date
+- ad_metrics: metric_id, campaign_id, impressions, clicks, spend, ctr, cpm
+- moderation_reports: report_id, post_id, reporter_id, reason, status, created_at
+- third_party_apps: app_id, name, developer
+- app_permissions: permission_id, app_id, user_id, permission_type, granted_at
+- activity_log: log_id, user_id, action_type, timestamp
+- followers: follower_id, followed_id, created_at
 
-const PRESETS: PresetQuery[] = [
-  {
-    key: 'topEngaging',
-    icon: '🔥',
-    sql: `SELECT p.post_id, p.content, p.reach_count, COUNT(i.interaction_id) AS interactions, ROUND(COUNT(i.interaction_id) * 100.0 / p.reach_count, 2) AS er FROM posts p LEFT JOIN interactions i ON p.post_id = i.post_id WHERE p.reach_count > 0 GROUP BY p.post_id ORDER BY interactions DESC LIMIT 10`,
-  },
-  {
-    key: 'mostActive',
-    icon: '👤',
-    sql: `SELECT u.user_id, u.first_name || ' ' || u.last_name AS name, COUNT(a.log_id) AS events FROM users u JOIN activity_log a ON u.user_id = a.user_id GROUP BY u.user_id ORDER BY events DESC LIMIT 10`,
-  },
-  {
-    key: 'privacyBreakdown',
-    icon: '🔒',
-    sql: `SELECT privacy, COUNT(*) AS count FROM posts WHERE privacy IS NOT NULL GROUP BY privacy ORDER BY count DESC`,
-  },
-  {
-    key: 'adRoi',
-    icon: '📊',
-    sql: `SELECT c.campaign_id, c.objective, c.budget, m.impressions, m.clicks, m.spend, ROUND(m.spend * 1000.0 / m.impressions, 2) AS cpm, ROUND(m.clicks * 100.0 / m.impressions, 2) AS ctr FROM ad_campaigns c JOIN ad_metrics m ON c.campaign_id = m.campaign_id ORDER BY cpm DESC`,
-  },
-  {
-    key: 'recentPosts',
-    icon: '📝',
-    sql: `SELECT post_id, author_id, media_type, privacy, reach_count, timestamp FROM posts ORDER BY timestamp DESC LIMIT 20`,
-  },
-  {
-    key: 'lowReach',
-    icon: '📉',
-    sql: `SELECT post_id, media_type, reach_count, timestamp FROM posts WHERE reach_count < (SELECT AVG(reach_count) * 0.3 FROM posts) ORDER BY reach_count ASC LIMIT 10`,
-  },
-  {
-    key: 'highCpm',
-    icon: '💰',
-    sql: `SELECT c.campaign_id, c.objective, ROUND(m.spend * 1000.0 / m.impressions, 2) AS cpm, m.spend, m.impressions FROM ad_campaigns c JOIN ad_metrics m ON c.campaign_id = m.campaign_id WHERE m.impressions > 0 ORDER BY cpm DESC LIMIT 10`,
-  },
-  {
-    key: 'zeroInteractions',
-    icon: '🤖',
-    sql: `SELECT p.post_id, p.content, p.reach_count, p.media_type FROM posts p LEFT JOIN interactions i ON p.post_id = i.post_id WHERE i.interaction_id IS NULL ORDER BY p.reach_count DESC`,
-  },
-  {
-    key: 'topFollowed',
-    icon: '👑',
-    sql: `SELECT f.followed_id, u.first_name || ' ' || u.last_name AS nombre, COUNT(*) AS seguidores
-          FROM followers f JOIN users u ON f.followed_id = u.user_id
-          GROUP BY f.followed_id ORDER BY seguidores DESC LIMIT 15`,
-  },
-  {
-    key: 'mutualFollows',
-    icon: '🤝',
-    sql: `SELECT f1.follower_id, u1.first_name || ' ' || u1.last_name AS usuario_a,
-                 f1.followed_id, u2.first_name || ' ' || u2.last_name AS usuario_b
-          FROM followers f1
-          JOIN followers f2 ON f1.follower_id = f2.followed_id AND f1.followed_id = f2.follower_id
-          JOIN users u1 ON f1.follower_id = u1.user_id
-          JOIN users u2 ON f1.followed_id = u2.user_id
-          WHERE f1.follower_id < f1.followed_id
-          LIMIT 20`,
-  },
-  {
-    key: 'permissionsBreakdown',
-    icon: '🔐',
-    sql: `SELECT ta.name AS app_name, COUNT(ap.permission_id) AS total_permisos
-          FROM third_party_apps ta JOIN app_permissions ap ON ta.app_id = ap.app_id
-          GROUP BY ta.app_id ORDER BY total_permisos DESC`,
-  },
-  {
-    key: 'topModerated',
-    icon: '⚠️',
-    sql: `SELECT p.post_id, p.author_id, p.media_type, p.reach_count,
-                 COUNT(mr.report_id) AS total_reports
-          FROM posts p JOIN moderation_reports mr ON p.post_id = mr.post_id
-          GROUP BY p.post_id ORDER BY total_reports DESC LIMIT 20`,
-  },
-  {
-    key: 'mediaTypeBreakdown',
-    icon: '🎨',
-    sql: `SELECT COALESCE(media_type, 'null') AS media_type,
-                 COUNT(*) AS total,
-                 ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM posts), 2) AS pct
-          FROM posts GROUP BY media_type ORDER BY total DESC`,
-  },
-  {
-    key: 'yearlyTrend',
-    icon: '📅',
-    sql: `SELECT strftime('%Y', timestamp) AS anio,
-                 COUNT(*) AS total_posts,
-                 ROUND(AVG(reach_count), 0) AS avg_reach
-          FROM posts WHERE timestamp IS NOT NULL
-          GROUP BY anio ORDER BY anio`,
-  },
+VOLUMEN: users(15.5k), posts(570k), interactions(250k), followers(200k), moderation_reports(200k), activity_log(220k), pages(100), ad_campaigns(50), ad_metrics(50), third_party_apps(20), app_permissions(200k)
+`
+
+const SYSTEM_PROMPT = `Eres un asistente de análisis de datos para una red social. Generas SQL para SQLite basado en preguntas en lenguaje natural.
+
+${DB_SCHEMA}
+
+REGLAS:
+- Responde SIEMPRE con JSON válido, sin texto extra
+- Si puedes generar SQL: {"sql":"SELECT ..."}
+- Si no puedes o es pregunta general: {"message":"respuesta en español"}
+- Usa LIMIT 100 máximo
+- Solo SQLite syntax
+- Usa ROUND() para decimales`
+
+const SUGGESTIONS = [
+  '¿Cuáles son los posts con más interacciones?',
+  '¿Quiénes son los usuarios más activos?',
+  'Distribución por tipo de media',
+  '¿Cómo se desempeñan las campañas publicitarias?',
+  'Posts más recientes',
+  'Tendencia de posts por año',
+  '¿Quiénes tienen más seguidores?',
+  'Posts sin ninguna interacción',
+  'Distribución de privacidad de posts',
+  'Top apps con más permisos concedidos',
 ]
 
+type Message = {
+  id: string
+  role: 'user' | 'assistant'
+  text?: string
+  sql?: string
+  rows?: any[]
+  columns?: { key: string; label: string }[]
+  error?: string
+  loading?: boolean
+}
+
+async function callOpenAI(apiKey: string, userMessage: string): Promise<string> {
+  const res = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      instructions: SYSTEM_PROMPT,
+      input: userMessage,
+    }),
+  })
+
+  if (!res.ok) {
+    let msg = `Error ${res.status}`
+    try { const e = await res.json(); msg = e?.error?.message ?? msg } catch {}
+    throw new Error(msg)
+  }
+
+  const data = await res.json()
+  return data.output?.[0]?.content?.[0]?.text ?? ''
+}
+
 export default function QueriesScreen() {
-  const { t } = useTranslation()
-  const { db: dbCtx } = useDb()
-  const [sql, setSql] = useState('')
-  const [result, setResult] = useState<any[] | null>(null)
-  const [columns, setColumns] = useState<{ key: string; label: string }[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [expandedSql, setExpandedSql] = useState<string | null>(null)
-  const [showSqlEditor, setShowSqlEditor] = useState(false)
-  const [currentQuery, setCurrentQuery] = useState<string | null>(null)
-  const [rowsPerPage] = useState(20)
-  const [page, setPage] = useState(0)
+  const { db, ready } = useDb()
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [apiKey, setApiKey] = useState(openaiKeyStore.get())
+  const listRef = useRef<FlatList>(null)
 
-  const getLabel = (key: string) =>
-    t(`queries.labels.${key}`, key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()))
+  useEffect(() => {
+    return openaiKeyStore.subscribe(() => setApiKey(openaiKeyStore.get()))
+  }, [])
 
-  const getPresetName = (key: string) => t(`queries.presets.${key}.name`, key)
+  useEffect(() => {
+    const event = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const sub = Keyboard.addListener(event, () => {
+      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }))
+    })
+    return () => sub.remove()
+  }, [])
 
-  const runQuery = useCallback(async (query: string, presetKey?: string) => {
-    if (!dbCtx) return
-    setLoading(true)
-    setError('')
-    setPage(0)
+  const updateLoadingMsg = useCallback((id: string, update: Partial<Message>) => {
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, loading: false, ...update } : m))
+  }, [])
+
+  const handleSend = useCallback(async (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || sending) return
+
+    const uid = Date.now().toString()
+    const aid = uid + '_ai'
+    const userMsg: Message = { id: uid, role: 'user', text: trimmed }
+    const aiMsg: Message = { id: aid, role: 'assistant', loading: true }
+
+    setMessages(prev => [...prev, userMsg, aiMsg])
+    setInput('')
+    setSending(true)
+
     try {
-      const rows: any[] = await dbCtx.queryAll(query)
-      if (rows.length > 0) {
-        const keys = Object.keys(rows[0])
-        setColumns(keys.map(k => ({ key: k, label: getLabel(k) })))
-      } else {
-        setColumns([])
+      const key = openaiKeyStore.get()
+      if (!key) {
+        updateLoadingMsg(aid, { text: 'No hay API key configurada. Ve a Ajustes y escribe tu API key de OpenAI.' })
+        return
       }
-      setResult(rows)
-      setCurrentQuery(presetKey ?? null)
-    } catch (e: any) {
-      setError(e.message ?? 'Query error')
-      setResult(null)
-    }
-    setLoading(false)
-  }, [dbCtx])
+      if (!db || !ready) {
+        updateLoadingMsg(aid, { text: 'La base de datos no está lista todavía. Espera un momento.' })
+        return
+      }
 
-  const paginatedData = result?.slice(page * rowsPerPage, (page + 1) * rowsPerPage) ?? []
-  const totalPages = result ? Math.ceil(result.length / rowsPerPage) : 0
+      const raw = await callOpenAI(key, trimmed)
+
+      let parsed: { sql?: string; message?: string } | null = null
+      try {
+        const match = raw.match(/\{[\s\S]*\}/)
+        if (match) parsed = JSON.parse(match[0])
+      } catch {}
+
+      if (parsed?.sql) {
+        try {
+          const rows: any[] = await db.queryAll(parsed.sql)
+          const cols = rows.length > 0
+            ? Object.keys(rows[0]).map(k => ({ key: k, label: k }))
+            : []
+          updateLoadingMsg(aid, {
+            sql: parsed.sql,
+            rows,
+            columns: cols,
+            text: rows.length === 0 ? 'La consulta no devolvió resultados.' : undefined,
+          })
+        } catch (sqlErr: any) {
+          updateLoadingMsg(aid, {
+            sql: parsed.sql,
+            error: sqlErr?.message ?? 'Error al ejecutar la consulta SQL',
+          })
+        }
+      } else if (parsed?.message) {
+        updateLoadingMsg(aid, { text: parsed.message })
+      } else {
+        updateLoadingMsg(aid, { text: raw || 'No se obtuvo respuesta.' })
+      }
+    } catch (err: any) {
+      updateLoadingMsg(aid, { error: err?.message ?? 'Error al conectar con OpenAI' })
+    } finally {
+      setSending(false)
+    }
+  }, [db, ready, sending, updateLoadingMsg])
+
+  const isEmpty = messages.length === 0
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>{t('queries.title')}</Text>
-      <Text style={styles.subtitle}>{t('queries.subtitle')}</Text>
-
-      <View style={styles.presetGrid}>
-        {PRESETS.map((p) => {
-          const isRunning = loading && currentQuery === p.key
-          const isExpanded = expandedSql === p.key
-          return (
-            <GlassCard key={p.key} glow={isRunning ? 'amber' : undefined}
-              style={[styles.presetCard, isRunning && styles.presetCardActive]}>
-              <TouchableOpacity onPress={() => runQuery(p.sql, p.key)} disabled={loading} activeOpacity={0.7}>
-                <View style={styles.presetHeader}>
-                  <Text style={styles.presetIcon}>{p.icon}</Text>
-                  <View style={styles.presetInfo}>
-                    <Text style={styles.presetQuestion}>{getPresetName(p.key)}</Text>
-                    <Text style={styles.presetDesc}>{t(`queries.presets.${p.key}.description`)}</Text>
-                  </View>
-                  {isRunning ? (
-                    <ActivityIndicator color={colors.accent.amber} size="small" />
-                  ) : (
-                    <Text style={styles.runArrow}>▶</Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-              <View style={styles.presetMeta}>
-                <Text style={styles.presetGoal}>{t(`queries.presets.${p.key}.goal`)}</Text>
-                <TouchableOpacity onPress={() => setExpandedSql(isExpanded ? null : p.key)}>
-                  <Text style={styles.showSqlBtn}>{isExpanded ? t('queries.hideSql') : t('queries.showSql')}</Text>
-                </TouchableOpacity>
-              </View>
-              {isExpanded && (
-                <View style={styles.sqlBlock}>
-                  <Text style={styles.sqlText}>{p.sql}</Text>
-                </View>
-              )}
-            </GlassCard>
-          )
-        })}
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Consultas</Text>
+        <Text style={styles.headerSub}>
+          {apiKey ? 'Haz consultas fáciles en lenguaje natural' : '⚠️ Configura tu API key en Ajustes'}
+        </Text>
       </View>
 
-      <TouchableOpacity style={styles.advancedToggle}
-        onPress={() => setShowSqlEditor(!showSqlEditor)}>
-        <Text style={styles.advancedToggleText}>
-          {showSqlEditor ? t('queries.hideEditor') : t('queries.advancedLabel')}
-        </Text>
-      </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 80}
+      >
+      {isEmpty ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>🤖</Text>
+          <Text style={styles.emptyTitle}>¿Qué quieres consultar?</Text>
+          <Text style={styles.emptySubtitle}>Escribe en español y obtén los datos al instante</Text>
+        </View>
+      ) : (
+        <FlatList
+          ref={listRef}
+          data={messages}
+          keyExtractor={m => m.id}
+          renderItem={({ item }) => <MessageBubble message={item} />}
+          contentContainerStyle={styles.messageList}
+          style={{ flex: 1 }}
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+          keyboardShouldPersistTaps="handled"
+        />
+      )}
 
-      {showSqlEditor && (
-        <View>
-          <TextInput
-            style={styles.input}
-            multiline
-            placeholder={t('queries.sqlPlaceholder')}
-            placeholderTextColor={colors.text.tertiary}
-            value={sql}
-            onChangeText={setSql}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <View style={styles.btnRow}>
-            <TouchableOpacity style={styles.runBtn} onPress={() => sql && runQuery(sql)} disabled={loading}>
-              <Text style={styles.runBtnText}>{t('queries.run')}</Text>
+      {isEmpty && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.suggestionsScroll}
+          contentContainerStyle={styles.suggestionsContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {SUGGESTIONS.map((s, i) => (
+            <TouchableOpacity
+              key={i}
+              style={styles.chip}
+              onPress={() => handleSend(s)}
+              disabled={sending}
+            >
+              <Text style={styles.chipText}>{s}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.clearBtn}
-              onPress={() => { setSql(''); setResult(null); setError(''); setCurrentQuery(null) }}>
-              <Text style={styles.clearBtnText}>{t('queries.clear')}</Text>
-            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      <View style={styles.inputRow}>
+        <TextInput
+          style={styles.input}
+          placeholder="Escribe tu pregunta..."
+          placeholderTextColor={colors.text.tertiary}
+          value={input}
+          onChangeText={setInput}
+          multiline
+          maxLength={500}
+          returnKeyType="default"
+        />
+        <TouchableOpacity
+          style={[styles.sendBtn, (!input.trim() || sending) && styles.sendBtnDisabled]}
+          onPress={() => handleSend(input)}
+          disabled={!input.trim() || sending}
+        >
+          {sending
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Text style={styles.sendIcon}>▲</Text>
+          }
+        </TouchableOpacity>
+      </View>
+      </KeyboardAvoidingView>
+    </View>
+  )
+}
+
+function MessageBubble({ message: m }: { message: Message }) {
+  if (m.role === 'user') {
+    return (
+      <View style={styles.userRow}>
+        <View style={styles.userBubble}>
+          <Text style={styles.userText}>{m.text}</Text>
+        </View>
+      </View>
+    )
+  }
+
+  return (
+    <View style={styles.aiRow}>
+      <View style={styles.aiBubble}>
+        {m.loading && (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color={colors.accent.amber} />
+            <Text style={styles.loadingText}>Procesando...</Text>
           </View>
-        </View>
-      )}
+        )}
 
-      {error ? (
-        <GlassCard glow="magenta" style={{ marginBottom: spacing.md, padding: spacing.md }}>
-          <Text style={[typography.body, { color: colors.status.critical }]}>{error}</Text>
-        </GlassCard>
-      ) : null}
+        {m.text && !m.loading && (
+          <Text style={styles.aiText}>{m.text}</Text>
+        )}
 
-      {loading && !currentQuery && (
-        <View style={{ alignItems: 'center', marginVertical: spacing.lg }}>
-          <ActivityIndicator color={colors.accent.amber} size="large" />
-          <Text style={{ ...typography.body, marginTop: spacing.sm, color: colors.accent.amber }}>
-            {t('queries.running')}
-          </Text>
-        </View>
-      )}
-
-      {result !== null && !loading && (
-        <View>
-          <View style={styles.resultHeader}>
-            <Text style={styles.resultTitle}>
-              {currentQuery ? getPresetName(currentQuery) : t('queries.results')}
-            </Text>
-            <Text style={styles.resultMeta}>
-              {result.length} {t('queries.rows')}
-              {totalPages > 1 && ` · ${t('queries.page', { current: page + 1, total: totalPages })}`}
-            </Text>
+        {m.sql && (
+          <View style={styles.sqlBlock}>
+            <Text style={styles.sqlLabel}>SQL generado</Text>
+            <Text style={styles.sqlText}>{m.sql}</Text>
           </View>
-          <DataTable columns={columns} data={paginatedData} />
-          {totalPages > 1 && (
-            <View style={styles.pagination}>
-              <TouchableOpacity
-                style={[styles.pageBtn, page === 0 && styles.pageBtnDisabled]}
-                onPress={() => setPage(Math.max(0, page - 1))}
-                disabled={page === 0}
-              >
-                <Text style={styles.pageBtnText}>{t('queries.prev')}</Text>
-              </TouchableOpacity>
-              <Text style={styles.pageInfo}>{page + 1} / {totalPages}</Text>
-              <TouchableOpacity
-                style={[styles.pageBtn, page >= totalPages - 1 && styles.pageBtnDisabled]}
-                onPress={() => setPage(Math.min(totalPages - 1, page + 1))}
-                disabled={page >= totalPages - 1}
-              >
-                <Text style={styles.pageBtnText}>{t('queries.next')}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      )}
-    </ScrollView>
+        )}
+
+        {m.error && (
+          <View style={styles.errorBlock}>
+            <Text style={styles.errorText}>⚠️ {m.error}</Text>
+          </View>
+        )}
+
+        {m.rows && m.rows.length > 0 && m.columns && (
+          <View style={styles.resultBlock}>
+            <Text style={styles.resultCount}>
+              {m.rows.length} resultado{m.rows.length !== 1 ? 's' : ''}
+              {m.rows.length > 20 ? ' (mostrando primeros 20)' : ''}
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <DataTable columns={m.columns} data={m.rows.slice(0, 20)} />
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.space.bg },
-  content: { padding: spacing.md, paddingBottom: spacing.xxl },
-  title: { ...typography.h1, marginBottom: spacing.xs },
-  subtitle: { ...typography.body, marginBottom: spacing.lg },
-  presetGrid: { gap: spacing.sm, marginBottom: spacing.lg },
-  presetCard: {
+  container: {
+    flex: 1,
+    backgroundColor: colors.space.bg,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  header: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.glass.cardBorder,
+    backgroundColor: colors.glass.card,
+  },
+  headerTitle: {
+    ...typography.h1,
+    marginBottom: 2,
+  },
+  headerSub: {
+    ...typography.small,
+    color: colors.text.tertiary,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: spacing.md,
+  },
+  emptyTitle: {
+    ...typography.h2,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  emptySubtitle: {
+    ...typography.body,
+    textAlign: 'center',
+    color: colors.text.tertiary,
+    lineHeight: 20,
+  },
+  messageList: {
     padding: spacing.md,
-    borderLeftWidth: 3,
-    borderLeftColor: 'transparent',
-  },
-  presetCardActive: {
-    borderLeftColor: colors.accent.amber,
-  },
-  presetHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     gap: spacing.sm,
   },
-  presetIcon: { fontSize: 24, marginTop: 2 },
-  presetInfo: { flex: 1 },
-  presetQuestion: { ...typography.h3, marginBottom: 2 },
-  presetDesc: { ...typography.small, color: colors.text.secondary, lineHeight: 16 },
-  runArrow: { fontSize: 16, color: colors.accent.amber, marginTop: 4 },
-  presetMeta: {
+  userRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: spacing.sm,
+  },
+  userBubble: {
+    backgroundColor: colors.accent.amber,
+    borderRadius: radius.lg,
+    borderBottomRightRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    maxWidth: '80%',
+    ...shadows.glass,
+  },
+  userText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  aiRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginBottom: spacing.sm,
+  },
+  aiBubble: {
+    backgroundColor: colors.glass.card,
+    borderRadius: radius.lg,
+    borderBottomLeftRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.glass.cardBorder,
+    padding: spacing.md,
+    maxWidth: '92%',
+    ...shadows.glass,
+  },
+  loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+    gap: spacing.sm,
   },
-  presetGoal: { ...typography.small, color: colors.accent.cyan, flex: 1 },
-  showSqlBtn: { ...typography.small, color: colors.text.tertiary, marginLeft: spacing.sm },
+  loadingText: {
+    ...typography.body,
+    color: colors.text.tertiary,
+  },
+  aiText: {
+    ...typography.body,
+    lineHeight: 20,
+    color: colors.text.primary,
+  },
   sqlBlock: {
     marginTop: spacing.sm,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.05)',
     borderRadius: radius.sm,
     padding: spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent.cyan,
+  },
+  sqlLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.accent.cyan,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
   },
   sqlText: {
     fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
     fontSize: 11,
-    color: colors.text.tertiary,
+    color: colors.text.secondary,
     lineHeight: 16,
   },
-  advancedToggle: {
-    paddingVertical: spacing.md,
-    marginBottom: spacing.sm,
+  errorBlock: {
+    marginTop: spacing.sm,
+    backgroundColor: 'rgba(220,38,38,0.06)',
+    borderRadius: radius.sm,
+    padding: spacing.sm,
   },
-  advancedToggleText: { ...typography.body, color: colors.accent.amber },
-  input: {
+  errorText: {
+    ...typography.small,
+    color: colors.status.critical,
+    lineHeight: 18,
+  },
+  resultBlock: {
+    marginTop: spacing.sm,
+  },
+  resultCount: {
+    ...typography.small,
+    color: colors.text.tertiary,
+    marginBottom: spacing.xs,
+  },
+  suggestionsScroll: {
+    flexShrink: 0,
+    marginBottom: spacing.sm,
+    maxHeight: 40,
+  },
+  suggestionsContent: {
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    columnGap: 8,
+  },
+  chip: {
     backgroundColor: colors.glass.card,
-    borderRadius: radius.md,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.glass.cardBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+  },
+  chipText: {
+    fontSize: 13,
+    color: colors.text.primary,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingBottom: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.glass.cardBorder,
+    backgroundColor: colors.glass.card,
+  },
+  input: {
+    flex: 1,
+    backgroundColor: colors.space.surface,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.glass.cardBorder,
     color: colors.text.primary,
-    padding: spacing.md,
-    minHeight: 100,
-    textAlignVertical: 'top',
-    fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
-    fontSize: 13,
-    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: 14,
+    maxHeight: 100,
+    textAlignVertical: 'center',
   },
-  btnRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
-  runBtn: {
+  sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.accent.amber,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  runBtnText: { ...typography.h3, color: colors.space.bg },
-  clearBtn: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.glass.cardBorder,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  clearBtnText: { ...typography.body, color: colors.text.secondary },
-  resultHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: spacing.sm,
-  },
-  resultTitle: { ...typography.h2 },
-  resultMeta: { ...typography.small, color: colors.text.tertiary },
-  pagination: {
-    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.lg,
+    ...shadows.glass,
   },
-  pageBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-    backgroundColor: colors.glass.card,
+  sendBtnDisabled: {
+    opacity: 0.4,
   },
-  pageBtnDisabled: { opacity: 0.3 },
-  pageBtnText: { ...typography.body, fontSize: 13, color: colors.text.secondary },
-  pageInfo: { ...typography.body, color: colors.text.tertiary },
+  sendIcon: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 })

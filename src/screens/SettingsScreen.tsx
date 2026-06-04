@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform, TextInput } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n'
 import { colors, spacing, radius, typography } from '../theme/tokens'
@@ -6,6 +6,7 @@ import { GlassCard } from '../components/GlassCard'
 import { useDbQuery } from '../hooks/useDbQuery'
 import { useDb } from '../db/DbContext'
 import { useState, useRef } from 'react'
+import { openaiKeyStore } from '../services/openaiKeyStore'
 
 export default function SettingsScreen() {
   const { t } = useTranslation()
@@ -16,6 +17,14 @@ export default function SettingsScreen() {
   const [dbStatus, setDbStatus] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const isWeb = Platform.OS === 'web'
+  const [apiKeyInput, setApiKeyInput] = useState(openaiKeyStore.get())
+  const [apiKeySaved, setApiKeySaved] = useState(false)
+
+  const handleSaveApiKey = () => {
+    openaiKeyStore.set(apiKeyInput)
+    setApiKeySaved(true)
+    setTimeout(() => setApiKeySaved(false), 2000)
+  }
 
   const handlePickDb = async () => {
     setDbStatus(null)
@@ -50,6 +59,38 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>{t('settings.title')}</Text>
+
+      <Text style={styles.sectionTitle}>API Key de OpenAI</Text>
+      <GlassCard style={{ marginBottom: spacing.md }}>
+        <Text style={{ ...typography.body, color: colors.text.secondary, marginBottom: spacing.sm }}>
+          Necesaria para usar Consultas con IA. No se almacena en ningún servidor.
+        </Text>
+        <TextInput
+          style={styles.apiKeyInput}
+          placeholder="sk-..."
+          placeholderTextColor={colors.text.tertiary}
+          value={apiKeyInput}
+          onChangeText={setApiKeyInput}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+        />
+        <TouchableOpacity
+          style={styles.uploadBtn}
+          onPress={handleSaveApiKey}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.uploadBtnText}>
+            {apiKeySaved ? '✓ Guardado' : 'Guardar API Key'}
+          </Text>
+        </TouchableOpacity>
+        {openaiKeyStore.get() && !apiKeySaved && (
+          <Text style={{ ...typography.small, color: colors.status.success, marginTop: spacing.xs }}>
+            ✓ API key configurada
+          </Text>
+        )}
+      </GlassCard>
 
       <Text style={styles.sectionTitle}>{t('settings.language')}</Text>
       <View style={styles.langRow}>
@@ -189,4 +230,16 @@ const styles = StyleSheet.create({
   },
   uploadBtnText: { ...typography.h3, color: colors.space.bg },
   statusText: { ...typography.body, marginTop: spacing.sm, fontWeight: '500' },
+  apiKeyInput: {
+    backgroundColor: colors.space.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.glass.cardBorder,
+    color: colors.text.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: 13,
+    marginBottom: spacing.sm,
+    fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
+  },
 })
