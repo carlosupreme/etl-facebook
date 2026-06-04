@@ -25,17 +25,23 @@ TABLAS:
 VOLUMEN: users(15.5k), posts(570k), interactions(250k), followers(200k), moderation_reports(200k), activity_log(220k), pages(100), ad_campaigns(50), ad_metrics(50), third_party_apps(20), app_permissions(200k)
 `
 
-const SYSTEM_PROMPT = `Eres un asistente de análisis de datos para una red social. Generas SQL para SQLite basado en preguntas en lenguaje natural.
+const SYSTEM_PROMPT = `Eres un asesor de negocio digital experto en análisis de redes sociales. Ayudas a dueños de negocio a entender sus datos respondiendo preguntas en lenguaje natural.
 
 ${DB_SCHEMA}
 
-REGLAS:
-- Responde SIEMPRE con JSON válido, sin texto extra
-- Si puedes generar SQL: {"sql":"SELECT ..."}
-- Si no puedes o es pregunta general: {"message":"respuesta en español"}
-- Usa LIMIT 100 máximo
+REGLAS DE RESPUESTA — responde SIEMPRE con JSON válido sin texto extra:
+
+Si puedes generar SQL:
+{"sql":"SELECT ...","comment":"2-3 oraciones en español: qué significan estos datos para el negocio, qué patrón o riesgo revelan, en tono de asesor directo","suggestion":"¿También te gustaría saber [pregunta relacionada relevante]?"}
+
+Si es pregunta general o no necesita SQL:
+{"message":"respuesta en español como asesor de negocio","suggestion":"¿También te gustaría saber [pregunta relacionada]?"}
+
+REGLAS SQL:
 - Solo SQLite syntax
-- Usa ROUND() para decimales`
+- LIMIT 100 máximo
+- ROUND() para decimales
+- No generes SQL que modifique datos`
 
 const SUGGESTIONS = [
   '¿Cuáles son los posts con más interacciones?',
@@ -58,21 +64,27 @@ type Message = {
   rows?: any[]
   columns?: { key: string; label: string }[]
   error?: string
+  comment?: string
+  suggestion?: string
   loading?: boolean
 }
 
-async function callOpenAI(apiKey: string, userMessage: string): Promise<string> {
+async function callOpenAI(
+  apiKey: string,
+  userMessage: string,
+  previousResponseId?: string,
+): Promise<{ text: string; responseId: string }> {
+  const body: any = {
+    model: 'gpt-4o-mini',
+    instructions: SYSTEM_PROMPT,
+    input: userMessage,
+  }
+  if (previousResponseId) body.previous_response_id = previousResponseId
+
   const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      instructions: SYSTEM_PROMPT,
-      input: userMessage,
-    }),
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify(body),
   })
 
   if (!res.ok) {
@@ -82,7 +94,10 @@ async function callOpenAI(apiKey: string, userMessage: string): Promise<string> 
   }
 
   const data = await res.json()
-  return data.output?.[0]?.content?.[0]?.text ?? ''
+  return {
+    text: data.output?.[0]?.content?.[0]?.text ?? '',
+    responseId: data.id ?? '',
+  }
 }
 
 export default function QueriesScreen() {
@@ -92,6 +107,7 @@ export default function QueriesScreen() {
   const [sending, setSending] = useState(false)
   const [apiKey, setApiKey] = useState(openaiKeyStore.get())
   const listRef = useRef<FlatList>(null)
+  const lastResponseIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     return openaiKeyStore.subscribe(() => setApiKey(openaiKeyStore.get()))
@@ -133,9 +149,10 @@ export default function QueriesScreen() {
         return
       }
 
-      const raw = await callOpenAI(key, trimmed)
+      const { text: raw, responseId } = await callOpenAI(key, trimmed, lastResponseIdRef.current)
+      if (responseId) lastResponseIdRef.current = responseId
 
-      let parsed: { sql?: string; message?: string } | null = null
+      let parsed: { sql?: string; message?: string; comment?: string; suggestion?: string } | null = null
       try {
         const match = raw.match(/\{[\s\S]*\}/)
         if (match) parsed = JSON.parse(match[0])
@@ -152,15 +169,18 @@ export default function QueriesScreen() {
             rows,
             columns: cols,
             text: rows.length === 0 ? 'La consulta no devolvió resultados.' : undefined,
+            comment: parsed.comment,
+            suggestion: parsed.suggestion,
           })
         } catch (sqlErr: any) {
           updateLoadingMsg(aid, {
             sql: parsed.sql,
             error: sqlErr?.message ?? 'Error al ejecutar la consulta SQL',
+            suggestion: parsed.suggestion,
           })
         }
       } else if (parsed?.message) {
-        updateLoadingMsg(aid, { text: parsed.message })
+        updateLoadingMsg(aid, { text: parsed.message, suggestion: parsed.suggestion })
       } else {
         updateLoadingMsg(aid, { text: raw || 'No se obtuvo respuesta.' })
       }
@@ -198,7 +218,7 @@ export default function QueriesScreen() {
           ref={listRef}
           data={messages}
           keyExtractor={m => m.id}
-          renderItem={({ item }) => <MessageBubble message={item} />}
+          renderItem={({ item }) => <MessageBubble message={item} onSuggestion={handleSend} />}
           contentContainerStyle={styles.messageList}
           style={{ flex: 1 }}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
@@ -254,7 +274,7 @@ export default function QueriesScreen() {
   )
 }
 
-function MessageBubble({ message: m }: { message: Message }) {
+function MessageBubble({ message: m, onSuggestion }: { message: Message; onSuggestion?: (s: string) => void }) {
   if (m.role === 'user') {
     return (
       <View style={styles.userRow}>
@@ -302,6 +322,22 @@ function MessageBubble({ message: m }: { message: Message }) {
               <DataTable columns={m.columns} data={m.rows.slice(0, 20)} />
             </ScrollView>
           </View>
+        )}
+
+        {m.comment && (
+          <View style={styles.commentBlock}>
+            <Text style={styles.commentText}>💡 {m.comment}</Text>
+          </View>
+        )}
+
+        {m.suggestion && (
+          <TouchableOpacity
+            style={styles.suggestionBtn}
+            onPress={() => onSuggestion?.(m.suggestion!)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.suggestionBtnText}>{m.suggestion}</Text>
+          </TouchableOpacity>
         )}
       </View>
     </View>
@@ -512,5 +548,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  commentBlock: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.glass.cardBorder,
+  },
+  commentText: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    lineHeight: 19,
+    fontStyle: 'italic',
+  },
+  suggestionBtn: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.accent.amberGlow,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.accent.amber,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+  },
+  suggestionBtnText: {
+    fontSize: 12,
+    color: colors.accent.amber,
+    fontWeight: '600',
   },
 })

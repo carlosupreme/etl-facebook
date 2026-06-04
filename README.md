@@ -11,7 +11,7 @@
 2. [Relación con el Proceso ETL](#2-relación-con-el-proceso-etl)
 3. [Arquitectura de la Aplicación](#3-arquitectura-de-la-aplicación)
 4. [Módulos y Pantallas](#4-módulos-y-pantallas)
-   - 4.1 Dashboard Overview · 4.2 Weaknesses Hub · 4.3 KPI Catalog · 4.4 Queries
+   - 4.1 Dashboard Overview · 4.2 Weaknesses Hub · 4.3 KPI Catalog · 4.4 Consultas
 5. [Componentes Reutilizables](#5-componentes-reutilizables)
 6. [Servicios y Lógica de Negocio](#6-servicios-y-lógica-de-negocio)
 7. [Navegación](#7-navegación)
@@ -45,14 +45,14 @@ La app **consulta directamente las tablas resultantes** del proceso:
 | ------------------- | ------------ | ----------------------------------------------------------------- |
 | `posts`             | ~570 000     | `media_type` normalizado — 6 tipos: image, video, link, story, reel, text |
 | `users`             | 15 500       |                                                                   |
-| `interactions`      | ~249 600     | 8 tipos: like, love, comment, share, haha, wow, sad, angry        |
+| `interactions`      | ~250 000     | 8 tipos: like, love, comment, share, haha, wow, sad, angry        |
 | `followers`         | ~200 000     | Relaciones seguidor→seguido; columnas `follower_id`, `followed_id`|
 | `app_permissions`   | ~200 499     | Columnas `permission_id`, `user_id`, `app_id`, `permission_type`  |
 | `third_party_apps`  | 20           | Columnas `app_id`, `name`                                         |
 | `ad_campaigns`      | 50           |                                                                   |
-| `ad_metrics`        | —            |                                                                   |
-| `activity_log`      | 20 000       |                                                                   |
-| `moderation_reports`| ~500         |                                                                   |
+| `ad_metrics`        | 50           |                                                                   |
+| `activity_log`      | ~220 000     |                                                                   |
+| `moderation_reports`| ~200 500     |                                                                   |
 | `pages`             | 100          |                                                                   |
 
 **Notas del ETL relevantes para la app:**
@@ -276,30 +276,55 @@ El botón de descarga genera un archivo `fb-studio-kpi-catalog-{idioma}.json` co
 
 ---
 
-### 4.4 Queries Screen (`QueriesScreen.tsx`)
+### 4.4 Consultas (`QueriesScreen.tsx`)
 
-**Propósito:** Explorador SQL interactivo con consultas preconfiguradas.
+**Propósito:** Interfaz de chat para explorar la base de datos en lenguaje natural. El usuario escribe una pregunta en español, un modelo de lenguaje genera el SQL correspondiente, la app lo ejecuta sobre la BD local y muestra los resultados en pantalla. Todo el procesamiento SQL ocurre localmente — el único dato que sale al exterior es el texto de la pregunta.
 
-**Consultas predefinidas disponibles:**
+#### Flujo de una consulta
 
-| Clave                  | Descripción                                     | Tablas involucradas                     |
-| ---------------------- | ----------------------------------------------- | --------------------------------------- |
-| `topEngaging`          | Top 10 posts por interacciones + tasa ER        | `posts`, `interactions`                 |
-| `mostActive`           | Top 10 usuarios más activos                     | `users`, `activity_log`                 |
-| `privacyBreakdown`     | Distribución por privacidad                     | `posts`                                 |
-| `adRoi`                | ROI de campañas (CPM, CTR)                      | `ad_campaigns`, `ad_metrics`            |
-| `recentPosts`          | Últimos 20 posts publicados                     | `posts`                                 |
-| `lowReach`             | Posts con alcance < 30% del promedio            | `posts`                                 |
-| `highCpm`              | Campañas con mayor CPM                          | `ad_campaigns`, `ad_metrics`            |
-| `zeroInteractions`     | Posts sin interacciones                         | `posts`, `interactions`                 |
-| `topFollowed`          | Top 15 usuarios con más seguidores              | `followers`, `users`                    |
-| `mutualFollows`        | Pares de usuarios que se siguen mutuamente      | `followers`, `users`                    |
-| `permissionsBreakdown` | Permisos totales por app conectada              | `third_party_apps`, `app_permissions`   |
-| `topModerated`         | Posts con más reportes de moderación            | `posts`, `moderation_reports`           |
-| `mediaTypeBreakdown`   | Distribución de posts por tipo de medio (%)     | `posts`                                 |
-| `yearlyTrend`          | Posts por año y alcance promedio anual          | `posts`                                 |
+```
+Usuario escribe pregunta en español
+  → Se envía a OpenAI Responses API con el esquema completo de la BD como contexto
+  → El modelo devuelve JSON: {"sql": "SELECT ..."} o {"message": "texto"}
+  → Si es SQL: se ejecuta con db.queryAll() sobre la BD local
+  → Los resultados se muestran en la burbuja de respuesta como tabla scrollable
+  → Si hay error de SQL: se muestra el mensaje de error en la burbuja
+```
 
-El usuario también puede escribir SQL libre y ver los resultados en una tabla paginada.
+#### Interfaz de chat
+
+| Elemento          | Descripción                                                                 |
+| ----------------- | --------------------------------------------------------------------------- |
+| Burbuja usuario   | Alineada a la derecha, fondo ámbar                                          |
+| Burbuja respuesta | Alineada a la izquierda, tarjeta blanca con el SQL generado + tabla de datos|
+| Bloque SQL        | Muestra la query generada en monospace con borde cian, para transparencia   |
+| Tabla de datos    | Scrollable horizontalmente, primeros 20 resultados                          |
+| Sugerencias       | 10 chips predefinidos visibles en el estado vacío, desaparecen al chatear   |
+
+#### Sugerencias predefinidas
+
+Las sugerencias son preguntas en lenguaje natural que cubren los casos de uso más comunes:
+
+- ¿Cuáles son los posts con más interacciones?
+- ¿Quiénes son los usuarios más activos?
+- Distribución por tipo de media
+- ¿Cómo se desempeñan las campañas publicitarias?
+- Posts más recientes
+- Tendencia de posts por año
+- ¿Quiénes tienen más seguidores?
+- Posts sin ninguna interacción
+- Distribución de privacidad de posts
+- Top apps con más permisos concedidos
+
+#### Prompt del sistema
+
+El modelo recibe el esquema completo de las 11 tablas con sus columnas, tipos y valores posibles, más el volumen aproximado de filas por tabla. Se le instruye a responder **siempre** en JSON (`{"sql":...}` o `{"message":...}`), usar `LIMIT 100` máximo y sintaxis SQLite estricta.
+
+#### BYOK — Bring Your Own Key
+
+La app **no almacena ni transmite la API key** a ningún servidor propio. El usuario la ingresa en la pantalla de Ajustes y se guarda únicamente en memoria durante la sesión (`openaiKeyStore`). Al cerrar la app, la key se pierde.
+
+> El modelo utilizado es `gpt-4o-mini` vía la [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses).
 
 ---
 
@@ -349,6 +374,16 @@ Gestión del catálogo de KPIs:
 - Almacena KPIs predefinidos (`DEFAULT_KPIS`) y personalizados
 - Persistencia local (AsyncStorage o similar)
 - CRUD de KPIs personalizados
+
+### `src/services/openaiKeyStore.ts`
+
+Almacén en memoria para la API key de OpenAI:
+
+- `get()` — devuelve la key actual
+- `set(key)` — actualiza la key y notifica a los suscriptores
+- `subscribe(cb)` — permite que componentes reaccionen al cambio de key sin Context
+
+La key **nunca se persiste** en disco ni AsyncStorage. Existe solo mientras la app está abierta.
 
 ### `src/services/evalExpression.ts`
 
@@ -418,6 +453,7 @@ Usa la librería `i18next` con `react-i18next`. Todos los textos visibles al usu
 | react-native-svg     | 15.12.1  | Gráficas vectoriales                |
 | i18next              | ^26.2.0  | Internacionalización                |
 | expo-document-picker | ~14.0.8  | Selección de archivo `.db` en móvil |
+| OpenAI Responses API | —        | Generación de SQL desde lenguaje natural (BYOK) |
 
 ---
 
@@ -456,8 +492,9 @@ bun run ios
 2. Selecciona el archivo `social_network.db` (resultado del ETL).
 3. La app carga la BD en memoria con `sql.js`.
 4. Navega por las pantallas para explorar KPIs, gráficas y análisis.
+5. Para usar **Consultas**: ve a ⚙️ Ajustes, ingresa tu API key de OpenAI (`sk-...`) y guárdala. Luego abre la pestaña Consultas y escribe en lenguaje natural.
 
-> **Nota:** El archivo `.db` nunca se modifica. La app solo ejecuta queries `SELECT` de lectura.
+> **Nota:** El archivo `.db` nunca se modifica. La app solo ejecuta queries `SELECT` de lectura. La API key de OpenAI se guarda solo en memoria y se pierde al cerrar la app.
 
 ---
 

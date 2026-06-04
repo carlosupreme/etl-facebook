@@ -45,7 +45,7 @@ export const DEFAULT_KPIS: KpiDefinition[] = [
   },
   {
     id: 'ctr', name: 'Efectividad del Anuncio', nameKey: 'kpi_catalog.kpis.ctr.name',
-    description: '¿Tu anuncio convence a la gente de hacer clic? Menos del 1.5% indica que el mensaje o la imagen no está funcionando. Probá nuevos creativos.',
+    description: '¿Tu anuncio convence a la gente de hacer clic? Menos del 1.5% indica que el mensaje o la imagen no está funcionando. Prueba nuevos creativos.',
     descKey: 'kpi_catalog.kpis.ctr.description',
     goalKey: 'kpi_catalog.kpis.ctr.businessGoal', icon: '🎯',
     formula: 'AVG(clicks × 100 / impressions)', goodValue: '≥ 1.5%',
@@ -54,7 +54,7 @@ export const DEFAULT_KPIS: KpiDefinition[] = [
   },
   {
     id: 'cpc', name: 'Costo por Visita', nameKey: 'kpi_catalog.kpis.cpc.name',
-    description: '¿Cuánto pagás cada vez que alguien hace clic en tu anuncio? Si superás $0.50, estás pagando demasiado por tráfico. Revisá segmentación y creativos.',
+    description: '¿Cuánto pagas cada vez que alguien hace clic en tu anuncio? Si superas $0.50, estás pagando demasiado por tráfico. Revisa segmentación y creativos.',
     descKey: 'kpi_catalog.kpis.cpc.description',
     goalKey: 'kpi_catalog.kpis.cpc.businessGoal', icon: '💲',
     formula: 'SUM(spend) / SUM(clicks)', goodValue: '< $0.50',
@@ -63,7 +63,7 @@ export const DEFAULT_KPIS: KpiDefinition[] = [
   },
   {
     id: 'cpm', name: 'Costo de Visibilidad', nameKey: 'kpi_catalog.kpis.cpm.name',
-    description: '¿Cuánto pagás para que 1,000 personas te vean? Más de $8 es señal de que tu segmentación o creativos necesitan ajuste urgente.',
+    description: '¿Cuánto pagas para que 1,000 personas te vean? Más de $8 es señal de que tu segmentación o creativos necesitan ajuste urgente.',
     descKey: 'kpi_catalog.kpis.cpm.description',
     goalKey: 'kpi_catalog.kpis.cpm.businessGoal', icon: '📊',
     formula: 'AVG(spend × 1000 / impressions)', goodValue: '< $8.00',
@@ -72,7 +72,7 @@ export const DEFAULT_KPIS: KpiDefinition[] = [
   },
   {
     id: 'churnRisk', name: 'Usuarios que se van', nameKey: 'kpi_catalog.kpis.churnRisk.name',
-    description: '¿Qué porcentaje de tu audiencia dejó de interactuar en los últimos 6 meses? Más del 10% es crítico — algo está alejando a tu gente. Investigá y actuá.',
+    description: '¿Qué porcentaje de tu audiencia dejó de interactuar en los últimos 6 meses? Más del 10% es crítico — algo está alejando a tu gente. Investiga y actúa.',
     descKey: 'kpi_catalog.kpis.churnRisk.description',
     goalKey: 'kpi_catalog.kpis.churnRisk.businessGoal', icon: '🚪',
     formula: 'Users NOT IN (active in last 6 months)', goodValue: '< 10% of total users',
@@ -117,7 +117,7 @@ export const DEFAULT_KPIS: KpiDefinition[] = [
   },
   {
     id: 'postsPerYear', name: 'Ritmo de Publicación', nameKey: 'kpi_catalog.kpis.postsPerYear.name',
-    description: '¿Publicás con suficiente consistencia? Menos de 12 publicaciones al año significa que tu audiencia te olvida entre post y post.',
+    description: '¿Publicas con suficiente consistencia? Menos de 12 publicaciones al año significa que tu audiencia te olvida entre post y post.',
     descKey: 'kpi_catalog.kpis.postsPerYear.description',
     goalKey: 'kpi_catalog.kpis.postsPerYear.businessGoal', icon: '📅',
     formula: 'COUNT(*) / (MAX(year) - MIN(year) + 1)', goodValue: '≥ 12 per year (weekly)',
@@ -126,7 +126,7 @@ export const DEFAULT_KPIS: KpiDefinition[] = [
   },
   {
     id: 'avgReach', name: '¿A cuántos llegás?', nameKey: 'kpi_catalog.kpis.avgReach.name',
-    description: 'Promedio de personas que ven cada publicación. Si este número baja, el algoritmo te está penalizando — mejorá la calidad y publicá en horarios de mayor actividad.',
+    description: 'Promedio de personas que ven cada publicación. Si este número baja, el algoritmo te está penalizando — mejora la calidad y publica en horarios de mayor actividad.',
     descKey: 'kpi_catalog.kpis.avgReach.description',
     goalKey: 'kpi_catalog.kpis.avgReach.businessGoal', icon: '👁️',
     formula: 'AVG(reach_count) FROM posts', goodValue: '≥ 5,000 per post',
@@ -135,7 +135,7 @@ export const DEFAULT_KPIS: KpiDefinition[] = [
   },
   {
     id: 'topMedia', name: 'Formato Favorito', nameKey: 'kpi_catalog.kpis.topMedia.name',
-    description: '¿El formato que más usás es el que mejor funciona? Si no coinciden, estás invirtiendo energía en el tipo de contenido equivocado.',
+    description: '¿El formato que más usas es el que mejor funciona? Si no coinciden, estás invirtiendo energía en el tipo de contenido equivocado.',
     descKey: 'kpi_catalog.kpis.topMedia.description',
     goalKey: 'kpi_catalog.kpis.topMedia.businessGoal', icon: '🎥',
     formula: 'SELECT media_type, COUNT(*) ... GROUP BY media_type ORDER BY count DESC', goodValue: 'Match between most-used and best-performing format',
@@ -153,7 +153,7 @@ export const DEFAULT_KPIS: KpiDefinition[] = [
   },
   {
     id: 'dormantPages', name: 'Páginas sin Actividad', nameKey: 'kpi_catalog.kpis.dormantPages.name',
-    description: 'Páginas que nunca han publicado nada. Son canales de distribución desperdiciados — activalas o eliminá las que no tienen ningún propósito.',
+    description: 'Páginas que nunca han publicado nada. Son canales de distribución desperdiciados — actívalas o elimina las que no tienen ningún propósito.',
     descKey: 'kpi_catalog.kpis.dormantPages.description',
     goalKey: 'kpi_catalog.kpis.dormantPages.businessGoal', icon: '💤',
     formula: 'Pages without any posts', goodValue: '0 dormant pages',
