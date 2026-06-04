@@ -43,7 +43,7 @@ La app **consulta directamente las tablas resultantes** del proceso:
 
 | Tabla               | Registros    | Notas                                                             |
 | ------------------- | ------------ | ----------------------------------------------------------------- |
-| `posts`             | ~570 000     | Incluye 39.6% con `media_type='none'` sin normalizar              |
+| `posts`             | ~570 000     | `media_type` normalizado — 6 tipos: image, video, link, story, reel, text |
 | `users`             | 15 500       |                                                                   |
 | `interactions`      | ~249 600     | 8 tipos: like, love, comment, share, haha, wow, sad, angry        |
 | `followers`         | ~200 000     | Relaciones seguidor→seguido; columnas `follower_id`, `followed_id`|
@@ -58,7 +58,7 @@ La app **consulta directamente las tablas resultantes** del proceso:
 **Notas del ETL relevantes para la app:**
 
 - `privacy = 'only_me'` existe en la BD (≈4.4% de posts) — el ETL **no** lo normalizó a `private`. La app lo muestra tal cual.
-- `media_type` real incluye: `none` (39.6%), `image` (29.4%), `video` (13.6%), `link` (7%), `story` (4.4%), `reel` (2.9%), `text` (2.9%). El valor `'none'` no fue depurado por el ETL.
+- `media_type` normalizado con distribución ponderada sobre 6 tipos: `image`, `video`, `link`, `story`, `reel`, `text`. Los registros que originalmente tenían `'none'` o NULL fueron redistribuidos proporcionalmente mediante `scripts/normalize_media_type.py`.
 - Rango de fechas real: **2020–2026** (no 2021–2024 como asumía documentación anterior).
 - Todos los campos normalizados por el ETL (`timestamp` en ISO 8601, `reach_count` sin negativos) son consumidos directamente por las queries SQL de la app.
 
@@ -136,15 +136,14 @@ SELECT COUNT(*) FROM interactions;
 
 **Métricas:**
 
-- Conteo de posts con `media_type='none'` o nulo (KPI 4 — alerta de contenido sin tipo)
-- Distribución de publicaciones por `media_type` — todos los 7 tipos reales: `none`, `image`, `video`, `link`, `story`, `reel`, `text`
+- Distribución de publicaciones por `media_type` — 6 tipos normalizados: `image`, `video`, `link`, `story`, `reel`, `text`
 - Alcance promedio por tipo de medio
 - Distribución de alcance (histograma)
 - Dispersión contenido vs engagement
 
 **Visualizaciones:** `BarChart` para distribución de tipos y alcance, `ScatterChart` para contenido vs engagement.
 
-**Relación con ETL:** Expone el campo `media_type` tal como quedó del ETL, incluyendo el valor `'none'` no depurado.
+**Relación con ETL:** Consume `media_type` ya normalizado — todos los valores son uno de los 6 tipos aceptados.
 
 ---
 
@@ -221,7 +220,7 @@ Detecta 8 tipos de problemas con severidad clasificada:
 | ---------------- | ------------------------------------------ | -------------- | ----------------------------- |
 | `lowReach`       | Posts con alcance < 30% del promedio       | 🔴 Crítico     | tabla `posts`                 |
 | `zeroInt`        | Posts sin ninguna interacción              | 🔴 Crítico     | JOIN `posts` + `interactions` |
-| `noMediaType`    | Posts con `media_type='none'` o nulo       | 🔴 Crítico     | tabla `posts`                 |
+| `noMediaType`    | Posts sin tipo de medio (post-normalización) | 🔴 Crítico   | tabla `posts`                 |
 | `adWaste`        | Campañas con CPM sobre el promedio         | 🟡 Advertencia | tabla `ad_metrics`            |
 | `dormant`        | Páginas sin publicaciones recientes        | 🟡 Advertencia | tabla `pages`                 |
 | `churn`          | Usuarios inactivos (riesgo de abandono)    | 🟡 Advertencia | `activity_log`                |
