@@ -18,7 +18,7 @@
 8. [Internacionalización (i18n)](#8-internacionalización-i18n)
 9. [Stack Tecnológico](#9-stack-tecnológico)
 10. [Cómo Ejecutar la App](#10-cómo-ejecutar-la-app)
-11. [Ejemplo de Reporte](#11-ejemplo-de-reporte)
+11. [Capturas de Pantalla](#11-capturas-de-pantalla)
 
 ---
 
@@ -498,6 +498,28 @@ bun run ios
 
 ---
 
-## 11. Ejemplo de Reporte
+## 11. Capturas de Pantalla
 
-![Ejemplo de reporte generado por FB Studio Mobile](docs/reporte.png)
+### Dashboard Overview
+
+| | | |
+|:---:|:---:|:---:|
+| ![Dashboard 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/dash.png) | ![Dashboard 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/dash2.png) | ![Dashboard 3](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/dash3.png) |
+
+### Weaknesses Hub — Debilidades detectadas
+
+| | |
+|:---:|:---:|
+| ![Debilidades 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/deb.png) | ![Debilidades 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/deb2.png) |
+
+### KPI Catalog
+
+| | | |
+|:---:|:---:|:---:|
+| ![KPI 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/kpi.png) | ![KPI 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/kpi2.png) | ![KPI 3](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/kpi3.png) |
+
+### Consultas en lenguaje natural (IA)
+
+| | | |
+|:---:|:---:|:---:|
+| ![IA 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/ia.png) | ![IA 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/ia2.png) | ![IA 3](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/ia3.png) |
