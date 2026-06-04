@@ -504,22 +504,22 @@ bun run ios
 
 | | | |
 |:---:|:---:|:---:|
-| ![Dashboard 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/dash.png) | ![Dashboard 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/dash2.png) | ![Dashboard 3](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/dash3.png) |
+| ![Dashboard 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/dash.png) | ![Dashboard 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/dash2.png) | ![Dashboard 3](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/dash3.png) |
 
 ### Weaknesses Hub — Debilidades detectadas
 
 | | |
 |:---:|:---:|
-| ![Debilidades 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/deb.png) | ![Debilidades 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/deb2.png) |
+| ![Debilidades 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/deb.png) | ![Debilidades 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/deb2.png) |
 
 ### KPI Catalog
 
 | | | |
 |:---:|:---:|:---:|
-| ![KPI 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/kpi.png) | ![KPI 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/kpi2.png) | ![KPI 3](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/kpi3.png) |
+| ![KPI 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/kpi.png) | ![KPI 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/kpi2.png) | ![KPI 3](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/kpi3.png) |
 
 ### Consultas en lenguaje natural (IA)
 
 | | | |
 |:---:|:---:|:---:|
-| ![IA 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/ia.png) | ![IA 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/ia2.png) | ![IA 3](https://raw.githubusercontent.com/carlosupreme/etl-facebook/main/fb-studio-mobile/assets/images/ia3.png) |
+| ![IA 1](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/ia.png) | ![IA 2](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/ia2.png) | ![IA 3](https://raw.githubusercontent.com/carlosupreme/etl-facebook/refs/heads/main/assets/images/ia3.png) |
