@@ -1,4 +1,5 @@
 assets/*.db
+public/social_network.db
 
 # dependencies
 node_modules/

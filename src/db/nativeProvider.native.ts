@@ -16,15 +16,17 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
 
   const { sqliteDir, dbFile } = dbFileUri()
 
-  if (!dbFile.exists) {
-    if (!sqliteDir.exists) {
-      sqliteDir.create({ intermediates: true })
-    }
-    const asset = Asset.fromModule(require('../../assets/social_network.db'))
-    await asset.downloadAsync()
-    const srcFile = new File(asset.localUri!)
-    await srcFile.copy(dbFile)
+  if (!sqliteDir.exists) {
+    sqliteDir.create({ intermediates: true })
   }
+
+  // Always copy from bundled asset so changes to assets/social_network.db
+  // are reflected on every cold start without manual re-upload.
+  if (dbFile.exists) dbFile.delete()
+  const asset = Asset.fromModule(require('../../assets/social_network.db'))
+  await asset.downloadAsync()
+  const srcFile = new File(asset.localUri!)
+  await srcFile.copy(dbFile)
 
   db = await SQLite.openDatabaseAsync(dbFile.uri)
   return db

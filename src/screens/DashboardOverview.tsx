@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { View, Text, ScrollView, StyleSheet } from 'react-native'
-import { colors, spacing, typography } from '../theme/tokens'
+import { colors, spacing, typography, radius } from '../theme/tokens'
 import { GlassCard } from '../components/GlassCard'
 import { KpiTile } from '../components/KpiTile'
 import { SectionHeader } from '../components/SectionHeader'
 import { ChartContainer } from '../components/ChartContainer'
-import { LineChart, PieChart, BarChart } from '../components/charts'
+import { LineChart, BarChart } from '../components/charts'
 import { DateRangeFilter, type DateRange } from '../components/DateRangeFilter'
 import { useDbQuery } from '../hooks/useDbQuery'
 
@@ -19,47 +19,66 @@ function fmtDate(raw: string): string {
   if (!raw) return ''
   const d = new Date(raw.replace(' ', 'T') + 'Z')
   if (isNaN(d.getTime())) return raw
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+  return d.toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: '2-digit' })
 }
 
 function fmtDay(raw: string): string {
   if (!raw) return ''
   const d = new Date(raw.replace(' ', 'T') + 'Z')
   if (isNaN(d.getTime())) return raw.slice(5)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
+}
+
+function fmtNum(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return n.toLocaleString()
 }
 
 export default function DashboardOverview() {
   const [dateRange, setDateRange] = useState<DateRange>({ label: 'Todo el tiempo', whereClause: '' })
   const granularity = inferGranularity(dateRange.label)
 
-  const { data: kpis } = useDbQuery('kpis', async (db) => {
+  const kpiKey = `kpis-${dateRange.label}`
+  const { data: kpis } = useDbQuery(kpiKey, async (db) => {
+    const w = dateRange.whereClause                          // "WHERE timestamp >= ..."
+    const and = w ? w.replace('WHERE ', 'AND ') : ''        // "AND timestamp >= ..."
+
     const users = await db.queryOne<{ c: number }>('SELECT COUNT(*) AS c FROM users')
-    const posts = await db.queryOne<{ c: number }>('SELECT COUNT(*) AS c FROM posts')
-    const interactions = await db.queryOne<{ c: number }>('SELECT COUNT(*) AS c FROM interactions')
+    const posts = await db.queryOne<{ c: number }>(
+      `SELECT COUNT(*) AS c FROM posts ${w}`
+    )
+    const interactions = await db.queryOne<{ c: number }>(
+      `SELECT COUNT(*) AS c FROM interactions i
+       JOIN posts p ON i.post_id = p.post_id ${w}`
+    )
+    const avgReach = await db.queryOne<{ avg: number }>(
+      `SELECT ROUND(AVG(reach_count), 0) AS avg FROM posts WHERE reach_count > 0 ${and}`
+    )
     const er = await db.queryOne<{ avg_er: number }>(
       `SELECT ROUND(AVG(er), 2) AS avg_er FROM (
         SELECT p.post_id, COUNT(i.interaction_id) * 100.0 / p.reach_count AS er
         FROM posts p LEFT JOIN interactions i ON p.post_id = i.post_id
-        WHERE p.reach_count > 0 GROUP BY p.post_id
-      )`)
-    return [
-      { label: 'Usuarios', value: users?.c ?? 0 },
-      { label: 'Publicaciones', value: posts?.c ?? 0 },
-      { label: 'Interacciones', value: interactions?.c ?? 0 },
-      { label: 'Tasa Interacción', value: `${er?.avg_er ?? 0}%`, trend: { value: 2.1, positive: true } },
-    ]
+        WHERE p.reach_count > 0 ${and} GROUP BY p.post_id
+      )`
+    )
+    return {
+      users: users?.c ?? 0,
+      posts: posts?.c ?? 0,
+      interactions: interactions?.c ?? 0,
+      avgReach: avgReach?.avg ?? 0,
+      er: er?.avg_er ?? 0,
+    }
   })
 
-  const queryKey = `postsTimeline-${dateRange.label}-${dateRange.whereClause.length}`
-  const { data: postsTimeline } = useDbQuery(queryKey, async (db) => {
+  const timelineKey = `postsTimeline-${dateRange.label}-${dateRange.whereClause.length}`
+  const { data: postsTimeline } = useDbQuery(timelineKey, async (db) => {
     const where = dateRange.whereClause
       ? `WHERE timestamp IS NOT NULL AND ${dateRange.whereClause.replace('WHERE ', '')}`
       : 'WHERE timestamp IS NOT NULL'
 
     let groupExpr: string
     let orderExpr: string
-
     if (granularity === 'day') {
       groupExpr = `strftime('%Y-%m-%d', timestamp)`
       orderExpr = groupExpr
@@ -75,11 +94,9 @@ export default function DashboardOverview() {
       `SELECT ${groupExpr} AS period, COUNT(*) AS count
        FROM posts ${where} GROUP BY ${groupExpr} ORDER BY ${orderExpr}`
     )
-
     const boundaries = await db.queryOne<{ first: string; last: string }>(
       `SELECT MIN(timestamp) AS first, MAX(timestamp) AS last FROM posts ${where}`
     )
-
     return {
       points: (rows ?? []).map(r => ({ period: r.period ?? '', posts: r.count ?? 0 })),
       range: { start: boundaries?.first ?? '', end: boundaries?.last ?? '' },
@@ -97,12 +114,33 @@ export default function DashboardOverview() {
     })
   }, [postsTimeline, granularity])
 
-  const { data: mediaDist } = useDbQuery('mediaDist', async (db) => {
-    const rows = await db.queryAll<{ media_type: string; count: number }>(
-      `SELECT media_type, COUNT(*) AS count FROM posts
-       WHERE media_type IS NOT NULL GROUP BY media_type ORDER BY count DESC`
+  const dateRangeDisplay = useMemo(() => {
+    if (!postsTimeline?.range.start) return dateRange.label
+    return `${fmtDate(postsTimeline.range.start)} → ${fmtDate(postsTimeline.range.end)}`
+  }, [postsTimeline, dateRange.label])
+
+  const { data: interactionTypes } = useDbQuery('interactionTypes', async (db) => {
+    const rows = await db.queryAll<{ type: string; count: number }>(
+      `SELECT type, COUNT(*) AS count FROM interactions GROUP BY type ORDER BY count DESC`
     )
-    return (rows ?? []).map(r => ({ type: r.media_type ?? 'unknown', count: r.count ?? 0 }))
+    return (rows ?? []).map(r => ({ label: r.type ?? 'otro', value: r.count ?? 0 }))
+  })
+
+  const { data: mediaPerf } = useDbQuery('mediaPerf', async (db) => {
+    const rows = await db.queryAll<{ media_type: string; avg_reach: number }>(
+      `SELECT media_type, ROUND(AVG(reach_count), 0) AS avg_reach
+       FROM posts WHERE reach_count > 0 AND media_type IS NOT NULL
+       GROUP BY media_type ORDER BY avg_reach DESC`
+    )
+    return (rows ?? []).map(r => ({ label: r.media_type ?? 'otro', value: r.avg_reach ?? 0 }))
+  })
+
+  const { data: topPosts } = useDbQuery('topPosts', async (db) => {
+    const rows = await db.queryAll<{ content: string; reach_count: number; media_type: string }>(
+      `SELECT content, reach_count, media_type
+       FROM posts WHERE reach_count > 0 ORDER BY reach_count DESC LIMIT 5`
+    )
+    return rows ?? []
   })
 
   const { data: topCountries } = useDbQuery('topCountries', async (db) => {
@@ -110,23 +148,8 @@ export default function DashboardOverview() {
       `SELECT country, COUNT(*) AS count FROM users
        GROUP BY country ORDER BY count DESC LIMIT 5`
     )
-    return (rows ?? []).map(r => ({ country: r.country ?? 'unknown', users: r.count ?? 0 }))
+    return (rows ?? []).map(r => ({ label: r.country ?? 'Desconocido', value: r.count ?? 0 }))
   })
-
-  const { data: privacyStats } = useDbQuery('privacyStats', async (db) => {
-    const rows = await db.queryAll<{ privacy: string; count: number }>(
-      `SELECT privacy, COUNT(*) AS count FROM posts
-       WHERE privacy IS NOT NULL GROUP BY privacy ORDER BY count DESC`
-    )
-    return (rows ?? []).map(r => ({ privacy: r.privacy ?? 'unknown', count: r.count ?? 0 }))
-  })
-
-  const dateRangeDisplay = useMemo(() => {
-    if (!postsTimeline || !postsTimeline.range.start) return dateRange.label
-    const start = fmtDate(postsTimeline.range.start)
-    const end = fmtDate(postsTimeline.range.end)
-    return `${start} → ${end}`
-  }, [postsTimeline])
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -136,12 +159,21 @@ export default function DashboardOverview() {
       <DateRangeFilter onChange={setDateRange} />
 
       <View style={styles.kpiRow}>
-        {kpis?.slice(0, 2).map((k, i) => <KpiTile key={i} label={k.label} value={k.value} trend={(k as any).trend} />)}
+        <KpiTile label="Usuarios" value={fmtNum(kpis?.users ?? 0)} />
+        <KpiTile label="Publicaciones" value={fmtNum(kpis?.posts ?? 0)} />
       </View>
       <View style={styles.kpiRow}>
-        {kpis?.slice(2, 4).map((k, i) => <KpiTile key={i} label={k.label} value={k.value} trend={(k as any).trend} />)}
+        <KpiTile label="Interacciones" value={fmtNum(kpis?.interactions ?? 0)} />
+        <KpiTile label="Tasa de Engagement" value={`${kpis?.er ?? 0}%`} trend={{ value: 2.1, positive: true }} />
       </View>
 
+      <GlassCard glow="amber" style={styles.featuredCard}>
+        <Text style={styles.featuredLabel}>ALCANCE PROMEDIO POR POST</Text>
+        <Text style={styles.featuredValue}>{fmtNum(kpis?.avgReach ?? 0)}</Text>
+        <Text style={styles.featuredSub}>personas alcanzan cada publicación en promedio</Text>
+      </GlassCard>
+
+      <SectionHeader title="Actividad de Publicaciones" />
       <ChartContainer title={`Publicaciones en el Tiempo · ${dateRangeDisplay}`} height={200}>
         <LineChart
           labels={postsLabels}
@@ -156,31 +188,49 @@ export default function DashboardOverview() {
         />
       </ChartContainer>
 
-      <ChartContainer title="Distribución por Tipo" height={200}>
-        <PieChart
-          data={mediaDist?.map(d => ({ label: d.type, value: d.count })) ?? []}
-          height={200}
-        />
+      <SectionHeader title="Tipos de Interacción" />
+      <ChartContainer title="¿Cómo reacciona la audiencia?" height={220}>
+        <BarChart data={interactionTypes ?? []} height={220} />
       </ChartContainer>
 
-      <View style={styles.twoCol}>
-        <ChartContainer title="Privacidad" height={180}>
-          <BarChart
-            data={privacyStats?.map(d => ({ label: d.privacy, value: d.count })) ?? []}
-            height={180}
-          />
-        </ChartContainer>
-        <ChartContainer title="Países principales" height={180}>
-          <BarChart
-            data={topCountries?.map(d => ({ label: d.country, value: d.users })) ?? []}
-            height={180}
-          />
-        </ChartContainer>
-      </View>
+      <SectionHeader title="Rendimiento por Formato" />
+      <ChartContainer title="Alcance promedio por tipo de contenido" height={200}>
+        <BarChart data={mediaPerf ?? []} height={200} />
+      </ChartContainer>
 
-      <SectionHeader title="Debilidades detectadas" action="Ver todo" />
-      <GlassCard glow="amber" style={styles.weaknessPreview}>
-        <Text style={typography.body}>3 debilidades detectadas — toca para ver</Text>
+      <SectionHeader title="Posts con Mayor Alcance" />
+      <GlassCard style={styles.tableCard}>
+        {(topPosts ?? []).map((row, i) => (
+          <View
+            key={i}
+            style={[styles.tableRow, i === (topPosts?.length ?? 0) - 1 && styles.tableRowLast]}
+          >
+            <View style={[styles.rankBadge, i === 0 && styles.rankBadgeTop]}>
+              <Text style={[styles.rank, i === 0 && styles.rankTop]}>#{i + 1}</Text>
+            </View>
+            <View style={styles.postInfo}>
+              <Text style={styles.postContent} numberOfLines={2}>
+                {row.content || '(sin texto)'}
+              </Text>
+              <Text style={styles.postMeta}>{row.media_type}</Text>
+            </View>
+            <Text style={styles.reachValue}>{fmtNum(row.reach_count)}</Text>
+          </View>
+        ))}
+      </GlassCard>
+
+      <SectionHeader title="Países Principales" />
+      <GlassCard style={styles.tableCard}>
+        {(topCountries ?? []).map((row, i) => (
+          <View
+            key={i}
+            style={[styles.tableRow, i === (topCountries?.length ?? 0) - 1 && styles.tableRowLast]}
+          >
+            <Text style={styles.rank}>#{i + 1}</Text>
+            <Text style={[styles.postContent, { flex: 1 }]}>{row.label}</Text>
+            <Text style={styles.reachValue}>{row.value.toLocaleString()}</Text>
+          </View>
+        ))}
       </GlassCard>
     </ScrollView>
   )
@@ -192,6 +242,62 @@ const styles = StyleSheet.create({
   title: { ...typography.h1, marginBottom: spacing.xs },
   subtitle: { ...typography.body, marginBottom: spacing.sm },
   kpiRow: { flexDirection: 'row', gap: '3%', marginBottom: spacing.sm },
-  twoCol: { gap: spacing.md },
-  weaknessPreview: { marginBottom: spacing.lg },
+
+  featuredCard: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  featuredLabel: {
+    ...typography.label,
+    color: colors.text.tertiary,
+    letterSpacing: 1.5,
+    marginBottom: spacing.xs,
+  },
+  featuredValue: {
+    fontSize: 52,
+    fontWeight: '800' as const,
+    color: colors.accent.amber,
+    lineHeight: 60,
+  },
+  featuredSub: {
+    ...typography.small,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+  },
+
+  tableCard: { marginBottom: spacing.lg, padding: 0, overflow: 'hidden' },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.glass.cardBorder,
+    gap: spacing.sm,
+  },
+  tableRowLast: { borderBottomWidth: 0 },
+
+  rankBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.full,
+    backgroundColor: colors.space.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankBadgeTop: { backgroundColor: colors.accent.amberGlow },
+  rank: { ...typography.small, color: colors.text.tertiary, fontWeight: '700' as const },
+  rankTop: { color: colors.accent.amber },
+
+  postInfo: { flex: 1 },
+  postContent: { ...typography.body, color: colors.text.primary },
+  postMeta: { ...typography.small, color: colors.text.tertiary, marginTop: 2 },
+  reachValue: {
+    ...typography.body,
+    color: colors.accent.amber,
+    fontWeight: '700' as const,
+    minWidth: 48,
+    textAlign: 'right',
+  },
 })

@@ -88,7 +88,22 @@ export function DbProvider({ children }: Props) {
 
   useEffect(() => {
     if (Platform.OS === 'web') {
-      setNeedsUpload(true)
+      fetch('/social_network.db')
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          return r.arrayBuffer()
+        })
+        .then(async (buf) => {
+          const SQL = await loadSqlJs()
+          const sqlDb = new SQL.Database(new Uint8Array(buf))
+          const p = createWebProvider(sqlDb)
+          providerRef.current = p
+          setProvider(p)
+          setReady(true)
+          setNeedsUpload(false)
+          setVersion(v => v + 1)
+        })
+        .catch(e => setError('No se pudo cargar social_network.db: ' + (e.message ?? e)))
       return
     }
     const p = createProvider() as any

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import DashboardOverview from '../screens/DashboardOverview'
 import KpiCatalogScreen from '../screens/KpiCatalogScreen'
 import QueriesScreen from '../screens/QueriesScreen'
+import SettingsScreen from '../screens/SettingsScreen'
 import WeaknessesHub from '../screens/WeaknessesHub'
 import { colors } from '../theme/tokens'
 
@@ -72,7 +73,16 @@ export default function TabNavigator() {
           ),
         }}
       />
-
+      <Tab.Screen
+        name="SettingsTab"
+        component={SettingsScreen}
+        options={{
+          tabBarLabel: t('nav.settings'),
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" size={size} color={color} />
+          ),
+        }}
+      />
     </Tab.Navigator>
   )
 }
