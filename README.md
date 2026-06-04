@@ -1,3 +1,13 @@
+# Equipo 6
+
+- Jiménez Gómez Gael Asahi 22161106
+- Guzmán Jiménez Alary 21161755
+- Cristóbal Ramírez Lisandro 21160609
+- Rodríguez Alavez Alejandro 22161223
+- Giner Coach Nierika 22161079
+- Sosa Perera Carlos Alberto 22160801
+
+
 # Documentación
 
 > **Aplicación de visualización analítica** para la red social facebook.
