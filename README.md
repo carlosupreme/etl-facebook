@@ -11,8 +11,7 @@
 2. [Relación con el Proceso ETL](#2-relación-con-el-proceso-etl)
 3. [Arquitectura de la Aplicación](#3-arquitectura-de-la-aplicación)
 4. [Módulos y Pantallas](#4-módulos-y-pantallas)
-   - 4.1 Dashboard Overview · 4.2 Content · 4.3 Engagement · 4.4 Advertising · 4.5 Activity
-   - 4.6 Weaknesses Hub · 4.7 KPI Catalog · 4.8 KPI Builder · 4.9 Queries · 4.10 Settings
+   - 4.1 Dashboard Overview · 4.2 Weaknesses Hub · 4.3 KPI Catalog · 4.4 Queries
 5. [Componentes Reutilizables](#5-componentes-reutilizables)
 6. [Servicios y Lógica de Negocio](#6-servicios-y-lógica-de-negocio)
 7. [Navegación](#7-navegación)
@@ -130,87 +129,7 @@ SELECT COUNT(*) FROM interactions;
 
 ---
 
-### 4.2 Content Screen (`ContentScreen.tsx`)
-
-**Propósito:** Análisis del contenido publicado en la red social.
-
-**Métricas:**
-
-- Distribución de publicaciones por `media_type` — 6 tipos normalizados: `image`, `video`, `link`, `story`, `reel`, `text`
-- Alcance promedio por tipo de medio
-- Distribución de alcance (histograma)
-- Dispersión contenido vs engagement
-
-**Visualizaciones:** `BarChart` para distribución de tipos y alcance, `ScatterChart` para contenido vs engagement.
-
-**Relación con ETL:** Consume `media_type` ya normalizado — todos los valores son uno de los 6 tipos aceptados.
-
----
-
-### 4.3 Engagement Screen (`EngagementScreen.tsx`)
-
-**Propósito:** Análisis de interacciones y participación de la audiencia.
-
-**Métricas:**
-
-- Conteo individual de las **8 reacciones**: like (96 872), love (40 237), comment (36 374), share (26 600), haha (20 032), wow (13 962), sad (9 988), angry (5 935)
-- Promedio de interacciones por post
-- Posts con cero interacciones (posibles bots o contenido ignorado)
-- Evolución temporal del engagement
-
-**Queries principales:**
-
-```sql
-SELECT COUNT(*) AS c FROM interactions WHERE type = 'like';
-SELECT COUNT(*) AS c FROM interactions WHERE type = 'love';
-SELECT COUNT(*) AS c FROM interactions WHERE type = 'haha';
--- ... (8 queries en total, una por tipo)
-```
-
-**Visualizaciones:** `PieChart` con las 8 reacciones (distribución de tipos + breakdown detallado), `LineChart` para evolución temporal.
-
----
-
-### 4.4 Advertising Screen (`AdvertisingScreen.tsx`)
-
-**Propósito:** Análisis del rendimiento de campañas publicitarias.
-
-**KPIs calculados con SQL en tiempo real:**
-
-| KPI        | Fórmula SQL                       | Umbral  |
-| ---------- | --------------------------------- | ------- |
-| CPM        | `AVG(spend × 1000 / impressions)` | < $8.00 |
-| CTR        | `AVG(clicks × 100 / impressions)` | ≥ 1.5%  |
-| CPC        | `SUM(spend) / SUM(clicks)`        | < $0.50 |
-| ROAS       | Revenue estimado / gasto total    | > 2.0×  |
-| Frecuencia | `AVG(impressions / avg_reach)`    | —       |
-
-**Visualizaciones:** `ScatterChart` (spend vs impresiones), `BarChart` (presupuesto vs gasto real), `LineChart` (CPM por campaña).
-
----
-
-### 4.5 Activity Screen (`ActivityScreen.tsx`)
-
-**Propósito:** Monitoreo de la actividad de usuarios en la plataforma.
-
-**Métricas:**
-
-- Top usuarios más activos (por eventos en `activity_log`)
-- Distribución de tipos de eventos
-- Usuarios con riesgo de churn (inactividad prolongada)
-
-**Query representativa:**
-
-```sql
-SELECT u.user_id, u.first_name || ' ' || u.last_name AS name,
-       COUNT(a.log_id) AS events
-FROM users u JOIN activity_log a ON u.user_id = a.user_id
-GROUP BY u.user_id ORDER BY events DESC LIMIT 10;
-```
-
----
-
-### 4.6 Weaknesses Hub (`WeaknessesHub.tsx`)
+### 4.2 Weaknesses Hub (`WeaknessesHub.tsx`)
 
 **Propósito:** Panel de alertas y puntos débiles detectados automáticamente.
 
@@ -231,46 +150,132 @@ Cada tarjeta es expandible y muestra descripción, impacto de negocio y recomend
 
 ---
 
-### 4.7 KPI Catalog (`KpiCatalogScreen.tsx`)
+### 4.3 KPI Catalog (`KpiCatalogScreen.tsx`)
 
-**Propósito:** Catálogo de KPIs predefinidos organizados por categoría.
-
-**Categorías disponibles:**
-
-- `paid_media` — KPIs de publicidad (ROAS, CTR, CPC, CPM)
-- `content_community` — KPIs de contenido y comunidad
-- `health_retention` — KPIs de salud y retención de usuarios
-
-Cada KPI muestra: nombre, descripción en español, fórmula, valor objetivo y el resultado calculado en tiempo real desde la BD.
-
-**KPIs predefinidos destacados:**
-
-- Retorno Publicitario (ROAS)
-- Efectividad del Anuncio (CTR)
-- Costo por Visita (CPC)
-- Costo de Visibilidad (CPM)
-- Usuarios que se van (Churn Risk)
-- Red de Seguidores (`totalFollowers`) — COUNT de tabla `followers`
-- Contenido Sin Tipo (`orphanPosts`) — posts con `media_type='none'` o nulo
+**Propósito:** Panel central de inteligencia analítica. Evalúa en tiempo real todos los KPIs predefinidos contra la base de datos cargada, muestra su estado de salud con código de color, y permite exportar el snapshot completo.
 
 ---
 
-### 4.8 KPI Builder (`KpiBuilderScreen.tsx`)
+#### Modos de vista
 
-**Propósito:** Editor visual para crear KPIs personalizados.
-
-El usuario puede:
-
-1. Definir un nombre, ícono y categoría
-2. Escribir una query SQL personalizada contra la BD cargada
-3. Definir una expresión de meta (ej. `value >= 2`)
-4. Guardar el KPI en el catálogo
-
-Esto permite al analista construir indicadores a medida sin modificar el código fuente.
+| Modo       | Acceso                          | Descripción                                      |
+| ---------- | ------------------------------- | ------------------------------------------------ |
+| `catalog`  | Vista por defecto               | Listado completo de KPIs con valores en vivo     |
+| `builder`  | Botón "Constructor" en cabecera | Abre `KpiBuilderScreen` embebido dentro del mismo componente |
 
 ---
 
-### 4.9 Queries Screen (`QueriesScreen.tsx`)
+#### Acciones de cabecera
+
+| Botón      | Ícono                    | Función                                                                          |
+| ---------- | ------------------------ | -------------------------------------------------------------------------------- |
+| Recargar   | `refresh-outline`        | Invalida el caché de todas las queries (`refreshAllQueries()`), relanza consultas SQL y muestra barra de progreso animada (0 → 100%) |
+| Constructor| `build-outline`          | Alterna a modo `builder` para crear KPIs personalizados                          |
+| Exportar   | `download-outline`       | Descarga un JSON con todos los KPIs, sus valores actuales y estados (web: descarga directa; móvil: Share sheet nativo) |
+
+---
+
+#### Filtro por categoría
+
+Barra horizontal scrollable. Filtra las tarjetas por categoría de KPI:
+
+| ID                  | Etiqueta             | Ícono                       |
+| ------------------- | -------------------- | --------------------------- |
+| `all`               | Todas                | —                           |
+| `paid_media`        | Medios Pagados       | `cash-outline`              |
+| `health_retention`  | Salud y Retención    | `heart-outline`             |
+| `content_community` | Contenido/Comunidad  | `document-text-outline`     |
+| `production`        | Producción           | `create-outline`            |
+| `content`           | Contenido            | `folder-outline`            |
+
+---
+
+#### Tarjetas de KPI
+
+Cada tarjeta es expandible y tiene dos estados:
+
+**Colapsada** — muestra:
+- Barra lateral de acento con color de estado (verde / amarillo / rojo)
+- Tag de categoría + chip de estado (`Saludable` / `Necesita Atención` / `Requiere Acción`)
+- Ícono · Nombre · Descripción (2 líneas) · **Valor actual** (grande, color-coded)
+- Objetivo en texto pequeño (`goodValue`)
+
+**Expandida** — agrega:
+- Objetivo de negocio (`businessGoal`)
+- Valor objetivo (`goodValue`) con ícono de check
+- Pill de estado actual (con spinner si la query está cargando)
+- Fórmula SQL en bloque monospace
+- **Gráfica inline contextual** (solo para algunos KPIs):
+
+| KPI              | Gráfica inline                                |
+| ---------------- | --------------------------------------------- |
+| `totalPosts`     | `BarChart` — posts por año (tendencia anual)  |
+| `topMedia`       | `PieChart` — distribución de `media_type`     |
+| `privacyLeader`  | `PieChart` — distribución de `privacy`        |
+| `cpm`            | `BarChart` — CPM promedio por objetivo de campaña |
+
+---
+
+#### Sistema de estados
+
+Los estados se evalúan con `evalTargetExpression(kpi.targetExpr, { value, pct, trend })` y tienen umbrales de fallback por KPI:
+
+| Estado              | Color  | Condición ejemplo                       |
+| ------------------- | ------ | --------------------------------------- |
+| `good` — Saludable  | Verde  | ROAS ≥ 2×, CTR ≥ 1.5%, ER ≥ 2%        |
+| `ok` — Atención     | Amarillo | CPM entre $8–$12, Churn < 25%        |
+| `bad` — Acción      | Rojo   | CPM > $12, Churn ≥ 25%, CPC ≥ $1      |
+
+---
+
+#### KPIs predefinidos (16 total)
+
+| ID               | Nombre                    | Categoría           | Meta              |
+| ---------------- | ------------------------- | ------------------- | ----------------- |
+| `roas`           | Retorno Publicitario      | paid_media          | ≥ 2×              |
+| `ctr`            | Efectividad del Anuncio   | paid_media          | ≥ 1.5%            |
+| `cpc`            | Costo por Visita          | paid_media          | < $0.50           |
+| `cpm`            | Costo de Visibilidad      | paid_media          | < $8.00           |
+| `churnRisk`      | Usuarios que se van       | health_retention    | < 10% del total   |
+| `adFatigue`      | Anuncios Agotados         | health_retention    | 0 campañas        |
+| `frequency`      | Repetición de Anuncios    | health_retention    | < 4× por persona  |
+| `totalFollowers` | Red de Seguidores         | health_retention    | Crecimiento +     |
+| `engagementRate` | ¿Tu contenido engancha?   | content_community   | ≥ 2%              |
+| `orphanPosts`    | Contenido Sin Tipo        | content_community   | < 28 500          |
+| `totalPosts`     | Volumen de Contenido      | production          | Tendencia creciente|
+| `postsPerYear`   | Ritmo de Publicación      | production          | ≥ 12/año          |
+| `avgReach`       | ¿A cuántos llegás?        | content             | ≥ 5 000 por post  |
+| `topMedia`       | Formato Favorito          | content             | Coincidencia uso/rendimiento |
+| `privacyLeader`  | Visibilidad del Contenido | content             | Mayoría "public"  |
+| `dormantPages`   | Páginas sin Actividad     | content             | 0 páginas         |
+
+---
+
+#### Exportación JSON
+
+El botón de descarga genera un archivo `fb-studio-kpi-catalog-{idioma}.json` con la siguiente estructura por KPI:
+
+```json
+{
+  "exportedAt": "2026-06-03T...",
+  "language": "es",
+  "kpis": [
+    {
+      "id": "roas",
+      "icon": "📈",
+      "name": "Retorno Publicitario",
+      "formula": "Estimated Revenue / Total Spend",
+      "target": "> 2.0 (2× return)",
+      "currentValue": "3.12x",
+      "status": "good"
+    }
+  ]
+}
+```
+
+---
+
+### 4.4 Queries Screen (`QueriesScreen.tsx`)
 
 **Propósito:** Explorador SQL interactivo con consultas preconfiguradas.
 
@@ -294,14 +299,6 @@ Esto permite al analista construir indicadores a medida sin modificar el código
 | `yearlyTrend`          | Posts por año y alcance promedio anual          | `posts`                                 |
 
 El usuario también puede escribir SQL libre y ver los resultados en una tabla paginada.
-
----
-
-### 4.10 Settings Screen (`SettingsScreen.tsx`)
-
-**Propósito:** Configuración general de la aplicación.
-
-Permite cambiar el idioma (español / inglés) y ver información de la base de datos cargada (nombre de tablas y conteo de registros).
 
 ---
 
